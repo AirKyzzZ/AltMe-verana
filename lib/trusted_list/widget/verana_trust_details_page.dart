@@ -155,8 +155,18 @@ class _SummaryField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
-          SelectableText(value ?? 'Unavailable'),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: Colors.black87),
+          ),
+          SelectableText(
+            value ?? 'Unavailable',
+            style: DefaultTextStyle.of(
+              context,
+            ).style.copyWith(color: Colors.black87),
+          ),
         ],
       ),
     );

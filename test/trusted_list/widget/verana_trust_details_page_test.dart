@@ -62,7 +62,8 @@ void main() {
     ],
   );
 
-  Widget page(VeranaDetailsLoader loader) => MaterialApp(
+  Widget page(VeranaDetailsLoader loader, {ThemeData? theme}) => MaterialApp(
+    theme: theme,
     home: VeranaTrustDetailsPage(
       entity: entity,
       client: _MockDioClient(),
@@ -94,6 +95,23 @@ void main() {
     expect(find.text('Verana resolver'), findsOneWidget);
     expect(find.text(Parameters.veranaResolverUrl), findsOneWidget);
     expect(find.text('must not render'), findsNothing);
+  });
+
+  testWidgets('uses dark secondary text on the trusted summary card', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      page(() async => details(), theme: ThemeData.dark()),
+    );
+    await tester.pumpAndSettle();
+
+    final didLabel = tester.widget<Text>(find.text('DID'));
+    final didValue = tester.widget<SelectableText>(
+      find.widgetWithText(SelectableText, did),
+    );
+
+    expect(didLabel.style?.color, Colors.black87);
+    expect(didValue.style?.color, Colors.black87);
   });
 
   testWidgets('retries when detailed trust evidence is unavailable', (
