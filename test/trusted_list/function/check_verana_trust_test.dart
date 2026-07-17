@@ -198,4 +198,90 @@ void main() {
       );
     });
   });
+
+  group('getVeranaTrustDetails', () {
+    const did = 'did:webvh:example';
+    late MockDioClient client;
+
+    setUp(() {
+      client = MockDioClient();
+    });
+
+    test(
+      'returns full details only for the exact trusted production DID',
+      () async {
+        when(
+          () =>
+              client.get(any(), queryParameters: any(named: 'queryParameters')),
+        ).thenAnswer(
+          (_) async => <String, dynamic>{
+            'did': did,
+            'trustStatus': 'TRUSTED',
+            'production': true,
+            'credentials': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'ecsType': 'ECS-SERVICE',
+                'issuedBy': 'did:webvh:issuer',
+                'claims': <String, dynamic>{'name': 'Unfold Verifier'},
+              },
+              <String, dynamic>{
+                'ecsType': 'ECS-ORG',
+                'claims': <String, dynamic>{'countryCode': 'FR'},
+              },
+            ],
+          },
+        );
+
+        final details = await getVeranaTrustDetails(did: did, client: client);
+
+        expect(details, isA<VeranaTrustDetails>());
+        expect(details?.credentials, hasLength(2));
+        expect(details?.credentials.first.issuedBy, 'did:webvh:issuer');
+        expect(details?.credentials[1].claims['countryCode'], 'FR');
+        verify(
+          () => client.get(
+            any(),
+            queryParameters: <String, dynamic>{'did': did, 'detail': 'full'},
+          ),
+        ).called(1);
+      },
+    );
+
+    for (final response in <Map<String, dynamic>>[
+      <String, dynamic>{
+        'did': 'did:webvh:other',
+        'trustStatus': 'TRUSTED',
+        'production': true,
+      },
+      <String, dynamic>{
+        'did': did,
+        'trustStatus': 'PARTIAL',
+        'production': true,
+      },
+      <String, dynamic>{
+        'did': did,
+        'trustStatus': 'TRUSTED',
+        'production': false,
+      },
+    ]) {
+      test('fails closed for $response', () async {
+        when(
+          () =>
+              client.get(any(), queryParameters: any(named: 'queryParameters')),
+        ).thenAnswer((_) async => response);
+
+        expect(await getVeranaTrustDetails(did: did, client: client), isNull);
+      });
+    }
+
+    test('does not call the resolver for a non-DID identifier', () async {
+      expect(
+        await getVeranaTrustDetails(did: 'https://example.com', client: client),
+        isNull,
+      );
+      verifyNever(
+        () => client.get(any(), queryParameters: any(named: 'queryParameters')),
+      );
+    });
+  });
 }

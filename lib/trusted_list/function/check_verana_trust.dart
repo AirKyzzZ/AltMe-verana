@@ -105,3 +105,27 @@ Future<TrustedEntity?> getEntityFromVerana({
     return null;
   }
 }
+
+Future<VeranaTrustDetails?> getVeranaTrustDetails({
+  required String did,
+  required DioClient client,
+}) async {
+  if (!did.startsWith('did:')) return null;
+  try {
+    final dynamic response = await client
+        .get(
+          '${Parameters.veranaResolverUrl}/v1/trust/resolve',
+          queryParameters: <String, dynamic>{'did': did, 'detail': 'full'},
+        )
+        .timeout(const Duration(seconds: 15));
+    final details = parseVeranaTrustDetails(response, did);
+    if (details == null ||
+        details.trustStatus != VeranaTrustStatus.trusted ||
+        !details.production) {
+      return null;
+    }
+    return details;
+  } catch (_) {
+    return null;
+  }
+}

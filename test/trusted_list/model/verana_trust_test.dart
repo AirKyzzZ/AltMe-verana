@@ -4,6 +4,30 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const did = 'did:webvh:example';
 
+  Map<String, dynamic> trustedDetailsResponse() => <String, dynamic>{
+    'did': did,
+    'trustStatus': 'TRUSTED',
+    'production': true,
+    'credentials': <dynamic>[
+      <String, dynamic>{
+        'ecsType': 'ECS-SERVICE',
+        'result': 'VALID',
+        'format': 'vc+sd-jwt',
+        'issuedBy': 'did:webvh:issuer',
+        'presentedBy': 'did:webvh:example',
+        'claims': <String, dynamic>{
+          'name': 'Unfold Verifier',
+          'privacyPolicy': 'https://example.com/privacy',
+        },
+      },
+      <String, dynamic>{
+        'ecsType': 'ECS-ORG',
+        'result': 'VALID',
+        'claims': <String, dynamic>{'name': 'Unfold', 'countryCode': 'FR'},
+      },
+    ],
+  };
+
   test('parses a valid summary with block and time metadata', () {
     final resolution = parseVeranaTrustResolution(<String, dynamic>{
       'did': did,
@@ -50,5 +74,38 @@ void main() {
       }, did),
       isNull,
     );
+  });
+
+  test('parses trusted full details and known credential claims', () {
+    final details = parseVeranaTrustDetails(trustedDetailsResponse(), did);
+
+    expect(details?.credentials, hasLength(2));
+    expect(details?.credentials.first.ecsType, 'ECS-SERVICE');
+    expect(details?.credentials.first.issuedBy, 'did:webvh:issuer');
+    expect(details?.credentials[1].claims['countryCode'], 'FR');
+  });
+
+  test('rejects full details for a mismatched DID', () {
+    expect(
+      parseVeranaTrustDetails(<String, dynamic>{
+        'did': 'did:webvh:other',
+        'trustStatus': 'TRUSTED',
+        'production': true,
+      }, did),
+      isNull,
+    );
+  });
+
+  test('sanitizes display strings', () {
+    expect(veranaDisplayString('  Unfold Verifier  '), 'Unfold Verifier');
+    expect(veranaDisplayString('   '), isNull);
+    expect(veranaDisplayString(<String, dynamic>{}), isNull);
+  });
+
+  test('accepts only HTTP(S) URIs', () {
+    expect(veranaHttpUri('https://example.com/privacy')?.scheme, 'https');
+    expect(veranaHttpUri('http://example.com/terms')?.scheme, 'http');
+    expect(veranaHttpUri('javascript:alert(1)'), isNull);
+    expect(veranaHttpUri('not a URL'), isNull);
   });
 }
