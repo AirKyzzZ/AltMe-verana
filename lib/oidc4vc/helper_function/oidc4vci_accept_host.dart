@@ -22,6 +22,7 @@ Future<void> oidc4vciAcceptHost({
 }) async {
   final l10n = context.l10n;
   var acceptHost = true;
+  var issuanceParameters = oidc4vcParameters;
 
   if (isDeveloperMode) {
     /// issuance case
@@ -97,20 +98,19 @@ Future<void> oidc4vciAcceptHost({
       final issuerOpenIdConfiguration =
           oidc4vcParameters.issuerOpenIdConfiguration;
 
-      final signedMetadata = issuerOpenIdConfiguration.signedMetadata;
-
-      oidc4vcParameters = oidc4vcParameters.copyWith(
-        issuerOpenIdConfiguration: getIssuerOpenIdConfiguration(
-          issuerOpenIdConfiguration: issuerOpenIdConfiguration,
-        ),
-      );
-
-      // get new issuer open id configuration from signed metadata
       final trustedEntity = getIssuerFromTrustedList(
         issuerOpenIdConfiguration: issuerOpenIdConfiguration,
         trustedList: trustedList,
       );
       if (trustedEntity != null) {
+        final signedMetadata = issuerOpenIdConfiguration.signedMetadata;
+
+        issuanceParameters = oidc4vcParameters.copyWith(
+          issuerOpenIdConfiguration: getIssuerOpenIdConfiguration(
+            issuerOpenIdConfiguration: issuerOpenIdConfiguration,
+          ),
+        );
+
         // check if each element of
         // oidc4vcParameters.credentialOffer['credential_configuration_ids'] are
         // in trustedEntity.vcTypes
@@ -220,7 +220,7 @@ Future<void> oidc4vciAcceptHost({
   if (acceptHost) {
     await context.read<QRCodeScanCubit>().acceptOidc4vci(
       approvedIssuer: approvedIssuer,
-      oidc4vcParameters: oidc4vcParameters,
+      oidc4vcParameters: issuanceParameters,
       qrCodeScanCubit: context.read<QRCodeScanCubit>(),
     );
   } else {
