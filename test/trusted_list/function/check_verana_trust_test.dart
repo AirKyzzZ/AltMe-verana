@@ -40,13 +40,33 @@ void main() {
       );
     });
 
-    test('falls back to the authorization URI for unsigned requests', () {
+    test('rejects an unsigned request instead of using the outer URI', () {
       expect(
         getVerifierClientId(
           authorizationUriClientId: 'did:webvh:outer',
           requestPayload: null,
         ),
-        'did:webvh:outer',
+        isNull,
+      );
+    });
+
+    test('rejects a signed request payload without a client id', () {
+      expect(
+        getVerifierClientId(
+          authorizationUriClientId: 'did:webvh:outer',
+          requestPayload: <String, dynamic>{},
+        ),
+        isNull,
+      );
+    });
+
+    test('rejects an empty signed client id', () {
+      expect(
+        getVerifierClientId(
+          authorizationUriClientId: 'did:webvh:outer',
+          requestPayload: <String, dynamic>{'client_id': ''},
+        ),
+        isNull,
       );
     });
   });

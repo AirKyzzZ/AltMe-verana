@@ -59,14 +59,12 @@ String? getVerifierClientId({
   required Map<String, dynamic>? requestPayload,
 }) {
   final signedClientId = requestPayload?['client_id'];
-  final clientId = signedClientId is String && signedClientId.isNotEmpty
-      ? signedClientId
-      : authorizationUriClientId;
+  if (signedClientId is! String || signedClientId.isEmpty) return null;
   const decentralizedIdentifierPrefix = 'decentralized_identifier:';
-  if (clientId?.startsWith(decentralizedIdentifierPrefix) ?? false) {
-    return clientId!.substring(decentralizedIdentifierPrefix.length);
+  if (signedClientId.startsWith(decentralizedIdentifierPrefix)) {
+    return signedClientId.substring(decentralizedIdentifierPrefix.length);
   }
-  return clientId;
+  return signedClientId;
 }
 
 /// Resolves a DID's trust status against the Verana trust registry.
