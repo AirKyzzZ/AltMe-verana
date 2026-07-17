@@ -1095,28 +1095,22 @@ class QRCodeScanCubit extends Cubit<QRCodeScanState> {
         final clientIdScheme = identity.clientIdScheme;
 
         if (clientIdScheme != null) {
-          final Map<String, dynamic> header = decodeHeader(
-            jwtDecode: jwtDecode,
-            token: encodedData,
-          );
-
-          if (clientIdScheme == 'x509_san_dns') {
-            publicKeyJwk = await checkX509(
-              clientId: clientId,
-              encodedData: encodedData,
-              header: header,
-            );
-          } else if (clientIdScheme == 'verifier_attestation') {
-            publicKeyJwk = await checkVerifierAttestation(
-              clientId: clientId,
-              header: header,
-              jwtDecode: jwtDecode,
-            );
-          } else if (clientIdScheme == 'redirect_uri') {
+          if (clientIdScheme == 'redirect_uri') {
             /// no need to verify
             return emit(state.acceptHost());
           } else if (clientIdScheme == 'did') {
             /// bypass
+          } else if (clientIdScheme == 'x509_san_dns' ||
+              clientIdScheme == 'verifier_attestation') {
+            final error = {
+              'error': 'invalid_request',
+              'error_description':
+                  '$clientIdScheme cryptographic verification is unavailable',
+            };
+            unawaited(
+              scanCubit.sendErrorToServer(uri: state.uri!, data: error),
+            );
+            throw ResponseMessage(data: error);
           } else {
             /// if client_id_scheme is not in the list -> did, redirect_uri,
             /// verifier_attestation, x509_san_dns

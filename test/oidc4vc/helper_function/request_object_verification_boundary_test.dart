@@ -6,11 +6,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oidc4vc/oidc4vc.dart';
 
 void main() {
-  String encodedRequest(Map<String, dynamic> payload) {
+  String encodedRequest(
+    Map<String, dynamic> payload, {
+    Map<String, dynamic> header = const <String, dynamic>{'alg': 'ES256'},
+  }) {
+    final encodedHeader = base64Url
+        .encode(utf8.encode(jsonEncode(header)))
+        .replaceAll('=', '');
     final encodedPayload = base64Url
         .encode(utf8.encode(jsonEncode(payload)))
         .replaceAll('=', '');
-    return 'header.$encodedPayload.signature';
+    return '$encodedHeader.$encodedPayload.signature';
   }
 
   group('createVerifiedRequestContextForIdentity', () {
@@ -115,27 +121,70 @@ void main() {
       },
     );
 
-    test('retains verified x509 and attestation JWK paths without a DID', () {
-      for (final scheme in <String>['x509_san_dns', 'verifier_attestation']) {
-        final identity = selectRequestObjectVerificationIdentity(
-          clientId: 'verifier.example',
-          clientIdScheme: scheme,
-          draft22AndAbove: false,
-        );
-        final request = encodedRequest(<String, dynamic>{
-          'client_id_scheme': scheme,
+    test('rejects a self-signed x509 leaf with an appended trusted root', () {
+      final identity = selectRequestObjectVerificationIdentity(
+        clientId: 'verifier.example',
+        clientIdScheme: 'x509_san_dns',
+        draft22AndAbove: false,
+      );
+      final request = encodedRequest(
+        const <String, dynamic>{
+          'client_id_scheme': 'x509_san_dns',
           'client_id': 'verifier.example',
-        });
+        },
+        header: const <String, dynamic>{
+          'alg': 'ES256',
+          'x5c': <String>[
+            'self-signed-attacker-leaf',
+            'appended-configured-root',
+          ],
+        },
+      );
 
-        final context = createVerifiedRequestContextForIdentity(
+      expect(
+        createVerifiedRequestContextForIdentity(
           identity: identity,
           verification: VerificationType.verified,
           encodedRequest: request,
-        );
+        ),
+        isNull,
+      );
+    });
 
-        expect(context?.encodedRequest, request, reason: scheme);
-        expect(context?.verifierDid, isNull, reason: scheme);
-      }
+    test('rejects an unsigned attacker verifier attestation', () {
+      final identity = selectRequestObjectVerificationIdentity(
+        clientId: 'verifier.example',
+        clientIdScheme: 'verifier_attestation',
+        draft22AndAbove: false,
+      );
+      final attackerAttestation = encodedRequest(
+        const <String, dynamic>{
+          'sub': 'verifier.example',
+          'cnf': <String, dynamic>{
+            'jwk': <String, dynamic>{'kty': 'EC', 'crv': 'P-256'},
+          },
+        },
+        header: const <String, dynamic>{
+          'alg': 'none',
+          'typ': 'verifier-attestation+jwt',
+        },
+      );
+      final request = encodedRequest(
+        const <String, dynamic>{
+          'client_id_scheme': 'verifier_attestation',
+          'client_id': 'verifier.example',
+        },
+        header: <String, dynamic>{'alg': 'ES256', 'jwt': attackerAttestation},
+      );
+
+      expect(
+        createVerifiedRequestContextForIdentity(
+          identity: identity,
+          verification: VerificationType.verified,
+          encodedRequest: request,
+        ),
+        isNull,
+      );
     });
 
     test('rejects an ambiguous identity before context creation', () {

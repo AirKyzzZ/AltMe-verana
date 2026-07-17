@@ -2,123 +2,104 @@
 
 ## Status
 
-Blocked before implementation by the task's explicit cryptography safety gate.
-The current dependencies can verify a JWS after a trusted public key has been
-selected, but they cannot safely validate an arbitrary X.509 certificate path
-to the configured trust anchors. No production code or tests were changed.
+Implemented the approved no-dependency safeguard. Trust evidence that the app
+cannot currently verify cryptographically now fails closed instead of creating
+a positive trust context.
+
+- `x509_san_dns` and `verifier_attestation` request objects are rejected by the
+  strict scan path with an explicit cryptographic-verification error.
+- Only a successfully verified DID request can create a
+  `VerifiedRequestContext` and reach static or Verana positive trust.
+- The permissive path retains the existing explicit untrusted consent. Redirect
+  requests also remain outside the verified request context.
+- Listed issuers are rejected before signed metadata is decoded or used. An
+  unsigned unlisted issuer still reaches the prominent warning dialog.
+
+Full X.509, verifier-attestation, and signed-issuer-metadata support remains
+unavailable until AltMe has a vetted RFC 5280 validation boundary. This change
+does not weaken strict verification or add a dependency.
 
 ## Reviewer findings verified at `a57619c`
 
 ### X.509 request objects
 
-`checkX509` in
-`lib/app/shared/helper_functions/helper_functions.dart` parses the leaf from
-the request object's `x5c`, string-parses its SAN extension, and returns the
-leaf key. The call to `verifyX509Chain` is commented out. The existing
-`verifyX509Chain` implementation only parses the supplied certificates and
-then returns `true`; its signature checks are also commented out.
-
-Consequently, a self-signed attacker leaf with a matching SAN is accepted even
-if the attacker merely appends a configured root certificate to the `x5c`
-array. The request-object JWS is then validly verified with the attacker's leaf
-key.
+`checkX509` parses the leaf from the request object's `x5c`, string-parses its
+SAN extension, and returns the leaf key. Its chain-verification call is
+commented out, and `verifyX509Chain` returns `true` after parsing the supplied
+certificates. A self-signed attacker leaf with a matching SAN and an appended
+configured root could therefore provide the key used to verify its own request
+object.
 
 ### Verifier attestation
 
-`checkVerifierAttestation` calls `JWTDecode.parseJwt` on the JOSE header's
-embedded `jwt`, checks only `sub` and the shape of `cnf.jwk`, and returns that
-unverified JWK. It does not validate the attestation JWS, establish trust in
-its `iss`, enforce `typ`, or validate `exp`, `nbf`, or `iat`. An attacker can
-therefore mint an unsigned or attacker-signed attestation containing their own
-`cnf.jwk`, then sign the request object with the corresponding private key.
+`checkVerifierAttestation` decodes the embedded attestation JWT, checks `sub`
+and the shape of `cnf.jwk`, then returns the unverified JWK. It does not validate
+the attestation JWS, trust its issuer, enforce `typ`, or validate time claims.
 
-### Listed issuer signed metadata and VCT authorization
+### Listed issuer signed metadata
 
-`getIssuerOpenIdConfiguration` uses `JWT.decode`, which does not verify the
-signed metadata JWS. `isCertificateValid` then succeeds when any literal
-`x5c` string appears in `TrustedEntity.rootCertificates`; it neither proves
-that the leaf chains to that anchor nor that the JWS was signed by the leaf.
+`getIssuerOpenIdConfiguration` decodes signed metadata without verifying its
+JWS. `isCertificateValid` accepted a literal `x5c` match without proving the
+leaf chained to that anchor or signed the JWS. The listed-issuer host flow also
+read VCT authorization from unsigned metadata while using decoded signed values
+for issuance.
 
-`oidc4vciAcceptHost` correctly creates `issuanceParameters` from the decoded
-signed payload, but its allow-list loop reads each `vct` from the original
-unsigned `issuerOpenIdConfiguration`. A listed issuer can therefore present an
-authorized unsigned VCT while the signed payload replaces the same
-configuration with an unauthorized VCT.
+## Implemented safeguard
 
-## Specification requirements
+### Request objects
 
-OpenID4VP 1.0 requires an `x509_san_dns` client identifier to match a
-`dNSName` SAN in the leaf, requires the request object to be signed by that
-leaf, and requires the wallet to validate the X.509 trust chain. It also
-requires the wallet to validate a verifier-attestation JWS and trust its
-issuer before using the attested `cnf.jwk`.
+- `lib/dashboard/qr_code/qr_code_scan/cubit/qr_code_scan_cubit.dart` rejects
+  `x509_san_dns` and `verifier_attestation` before either unsafe helper can
+  supply a request-verification key.
+- `lib/oidc4vc/helper_function/request_object_verification_boundary.dart`
+  accepts only DID identities when constructing `VerifiedRequestContext`, so a
+  future call-site regression cannot promote either unavailable scheme.
+- The shared `checkX509` helper was not globally disabled because other UI code
+  uses it outside this request trust boundary.
 
-OpenID4VCI requires signed issuer metadata to be JWS-protected, its signer to
-be trusted before processing, `sub` to match the Credential Issuer identifier,
-and signed metadata values to take precedence over unsigned values.
+### Issuer metadata
 
-References:
+- `lib/oidc4vc/helper_function/oidc4vci_accept_host.dart` fails closed as soon
+  as an issuer matches the trusted list. It no longer decodes signed metadata,
+  compares a literal certificate, reads an unsigned VCT for authorization, or
+  presents a positive trusted-issuer dialog.
+- The unlisted branch is unchanged and retains its explicit warning/demo
+  issuance path.
 
-- https://openid.net/specs/openid-4-verifiable-presentations-1_0-final.html#name-defined-client-identifier-p
-- https://openid.net/specs/openid-4-verifiable-presentations-1_0-final.html#name-verifier-attestation-jwt
-- https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-final.html#name-signed-metadata
-- https://www.rfc-editor.org/rfc/rfc5280.html#section-6
+## TDD evidence
 
-## Exact dependency and platform blocker
+The initial focused run failed on all three attacker regressions:
 
-- `x509_plus 0.3.3` exposes certificate/extension parsers and public-key
-  primitives, but no RFC 5280 path builder or validator. Its public API has no
-  chain-verification entry point.
-- `jose_plus 0.4.7` can verify the request, attestation, and metadata JWS only
-  after the caller supplies a trusted `JsonWebKey`. It does not validate the
-  `x5c` path that establishes whether the leaf key is trusted.
-- `dart:io SecurityContext` applies configured trust anchors only while a
-  `SecureSocket` performs a live TLS handshake. It has no API to validate the
-  arbitrary offline `x5c` chain carried by a JOSE header.
-- The repository contains no Android `CertPathValidator` or iOS `SecTrust`
-  bridge that could perform the platform validation safely.
-- Verifier-attestation processing currently receives no trusted attestation
-  authority or trust-anchor input. The profile trusted list could be wired to
-  the call site, but without a certificate-path validator the attestation
-  issuer key still cannot be authenticated safely.
+- self-signed X.509 leaf with an appended configured root produced a
+  `VerifiedRequestContext`;
+- unsigned attacker verifier attestation produced a
+  `VerifiedRequestContext`;
+- forged listed-issuer metadata replaced endpoints/configuration and reached a
+  positive confirmation dialog.
 
-Implementing certificate signature checks, basic constraints, path length,
-key usage, extended key usage, critical extensions, validity, name chaining,
-anchor selection, and SAN matching directly with ASN.1 and crypto primitives
-would be a hand-rolled PKIX validator. That is precisely the unsafe crypto the
-task says not to invent.
+After the safeguard, the same attacker cases fail closed. The compatibility
+case proving unsigned unlisted issuers still reach prominent untrusted consent
+also remains green.
 
-## Safe unblock options
+## Verification
 
-1. Approve and select a maintained, audited Flutter-compatible dependency that
-   performs full RFC 5280 path validation against caller-provided DER trust
-   anchors on Android and iOS.
-2. Approve a platform boundary: Android `CertificateFactory` plus
-   `CertPathValidator(PKIX)` and iOS `SecTrust` with explicit anchors, exposed
-   through a narrow MethodChannel and covered by native positive and negative
-   tests.
+- `dart format --set-exit-if-changed` on the five changed Dart files: clean.
+- Focused `flutter analyze` on the five changed Dart files: no issues.
+- Focused Flutter suite covering the boundary, issuer host flow, verified
+  request state/context, and Verana trust: 36 tests passed.
+- `git diff --check`: clean.
 
-After either option is approved, the Dart layer can safely:
+## Remaining safe unblock options
 
-- parse `x5c` strictly and reject malformed, duplicate, or unsupported paths;
-- validate the complete path to the exact configured anchor;
-- enforce leaf validity, digital-signature usage, CA constraints, and exact
-  `dNSName` SAN matching;
-- verify request-object, verifier-attestation, and signed-metadata JWS values
-  with explicit asymmetric algorithm allow-lists;
-- enforce the applicable `typ`, `iss`, `sub`, `exp`, `nbf`, and `iat` claims;
-- read offered VCT authorization only from the verified signed metadata
-  configuration;
-- retain the existing DID/Verana path and unsigned-unlisted warning.
+To restore positive X.509, verifier-attestation, or listed-issuer signed
+metadata trust, use either:
 
-## Required RED fixtures once unblocked
+1. a maintained, audited Flutter-compatible dependency that performs full RFC
+   5280 path validation against caller-provided DER trust anchors; or
+2. a native Android `CertPathValidator(PKIX)` and iOS `SecTrust` boundary with
+   explicit anchors and native positive/negative tests.
 
-- self-signed leaf with a matching SAN plus an appended configured root;
-- valid leaf/intermediate/root chain with request-object proof of possession;
-- unsigned and attacker-signed verifier attestations carrying attacker JWKs;
-- valid trusted verifier attestation with request-object proof of possession;
-- forged signed metadata that reuses a public certificate without its private
-  key;
-- valid signed metadata chain and JWS;
-- signed versus unsigned credential-configuration VCT mismatch, proving only
-  the verified signed payload controls authorization.
+That implementation must validate the full certificate path, certificate
+constraints and validity, exact SAN/subject binding, JOSE algorithm and `typ`,
+JWS proof of possession, issuer trust, applicable time claims, and signed
+metadata precedence before re-enabling positive trust.

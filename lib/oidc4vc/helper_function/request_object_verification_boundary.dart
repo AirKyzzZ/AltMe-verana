@@ -2,11 +2,7 @@ import 'package:altme/oidc4vc/helper_function/select_request_object_verification
 import 'package:altme/oidc4vc/model/verified_request_context.dart';
 import 'package:oidc4vc/oidc4vc.dart';
 
-const _cryptographicallyVerifiedSchemes = <String>{
-  'did',
-  'verifier_attestation',
-  'x509_san_dns',
-};
+const _cryptographicallyVerifiedSchemes = <String>{'did'};
 
 VerifiedRequestContext? createVerifiedRequestContextForIdentity({
   required RequestObjectVerificationIdentity? identity,

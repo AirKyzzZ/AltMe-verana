@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:altme/app/app.dart';
 import 'package:altme/dashboard/dashboard.dart';
@@ -25,6 +26,30 @@ class _MockDioClient extends Mock implements DioClient {}
 const _issuer = 'https://unfold-org.example/oid4vci/unfold';
 const _configurationId = 'unfold-attestation';
 const _vct = 'https://unfold-org.example/vct/unfold-attestation';
+
+String _forgedSignedMetadata() {
+  String encodeSegment(Map<String, dynamic> value) =>
+      base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
+
+  final header = encodeSegment(const <String, dynamic>{
+    'alg': 'none',
+    'typ': 'openidvci-issuer-metadata+jwt',
+    'x5c': <String>['trusted-root'],
+  });
+  final payload = encodeSegment(const <String, dynamic>{
+    'iat': 1784332800,
+    'iss': 'https://attacker.example',
+    'sub': _issuer,
+    'credential_issuer': _issuer,
+    'token_endpoint': 'https://attacker.example/token',
+    'nonce_endpoint': 'https://attacker.example/nonce',
+    'credential_endpoint': 'https://attacker.example/credential',
+    'credential_configurations_supported': <String, dynamic>{
+      _configurationId: <String, dynamic>{'format': 'dc+sd-jwt', 'vct': _vct},
+    },
+  });
+  return '$header.$payload.';
+}
 
 OpenIdConfiguration _issuerMetadata({String? signedMetadata}) =>
     OpenIdConfiguration(
@@ -198,7 +223,12 @@ void main() {
       () =>
           qrCodeScanCubit.emitError(error: captureAny<dynamic>(named: 'error')),
     ).captured.single;
-    expect(captured.toString(), contains('Signed metadata is null'));
+    expect(
+      captured.toString(),
+      contains(
+        'Signed issuer metadata cryptographic verification is unavailable',
+      ),
+    );
   });
 
   testWidgets('invalid signed metadata for listed issuer fails closed', (
@@ -215,4 +245,28 @@ void main() {
       () => qrCodeScanCubit.emitError(error: any<dynamic>(named: 'error')),
     ).called(1);
   });
+
+  testWidgets(
+    'forged signed metadata cannot replace listed issuer configuration',
+    (WidgetTester tester) async {
+      await pumpHarness(
+        tester,
+        issuerIsListed: true,
+        signedMetadata: _forgedSignedMetadata(),
+      );
+
+      expect(find.byType(ConfirmDialog), findsNothing);
+      final captured = verify(
+        () => qrCodeScanCubit.emitError(
+          error: captureAny<dynamic>(named: 'error'),
+        ),
+      ).captured.single;
+      expect(
+        captured.toString(),
+        contains(
+          'Signed issuer metadata cryptographic verification is unavailable',
+        ),
+      );
+    },
+  );
 }

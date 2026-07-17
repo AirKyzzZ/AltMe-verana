@@ -5,9 +5,6 @@ import 'package:altme/dashboard/qr_code/qr_code_scan/cubit/qr_code_scan_cubit.da
 import 'package:altme/dashboard/qr_code/widget/developer_mode_dialog.dart';
 import 'package:altme/l10n/l10n.dart';
 import 'package:altme/trusted_list/function/check_issuer_is_trusted.dart';
-import 'package:altme/trusted_list/function/get_issuer_open_id_configuration.dart';
-import 'package:altme/trusted_list/function/is_certificate_valid.dart';
-import 'package:altme/trusted_list/widget/trusted_entity_details.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:oidc4vc/oidc4vc.dart';
@@ -22,7 +19,7 @@ Future<void> oidc4vciAcceptHost({
 }) async {
   final l10n = context.l10n;
   var acceptHost = true;
-  var issuanceParameters = oidc4vcParameters;
+  final issuanceParameters = oidc4vcParameters;
 
   if (isDeveloperMode) {
     /// issuance case
@@ -103,70 +100,9 @@ Future<void> oidc4vciAcceptHost({
         trustedList: trustedList,
       );
       if (trustedEntity != null) {
-        final signedMetadata = issuerOpenIdConfiguration.signedMetadata;
-
-        issuanceParameters = oidc4vcParameters.copyWith(
-          issuerOpenIdConfiguration: getIssuerOpenIdConfiguration(
-            issuerOpenIdConfiguration: issuerOpenIdConfiguration,
-          ),
+        throw UnsupportedError(
+          'Signed issuer metadata cryptographic verification is unavailable',
         );
-
-        // check if each element of
-        // oidc4vcParameters.credentialOffer['credential_configuration_ids'] are
-        // in trustedEntity.vcTypes
-
-        final credentialConfigurationIds =
-            oidc4vcParameters.credentialOffer['credential_configuration_ids'];
-        if (credentialConfigurationIds != null &&
-            credentialConfigurationIds is List) {
-          for (final credentialConfigurationId in credentialConfigurationIds) {
-            final vct = issuerOpenIdConfiguration
-                // ignore: lines_longer_than_80_chars
-                .credentialConfigurationsSupported[credentialConfigurationId]['vct'];
-            if (!trustedEntity.vcTypes!.contains(vct)) {
-              throw Exception(
-                // ignore: lines_longer_than_80_chars
-                "$credentialConfigurationId is not in the trusted entity's vcTypes",
-              );
-            }
-          }
-        } else {
-          throw Exception(
-            'credential_configuration_ids from credential offer is not valid',
-          );
-        }
-
-        isCertificateValid(
-          trustedEntity: trustedEntity,
-          signedMetadata: signedMetadata!,
-        );
-        // check certificate is trusted
-
-        LoadingView().hide();
-        acceptHost =
-            await showDialog<bool>(
-              context: context,
-              builder: (BuildContext context) {
-                return SafeArea(
-                  child: ConfirmDialog(
-                    title: l10n.scanPromptHost,
-                    content: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height * 0.6,
-                      ),
-                      child: SingleChildScrollView(
-                        child: TrustedEntityDetails(
-                          trustedEntity: trustedEntity,
-                        ),
-                      ),
-                    ),
-                    yes: l10n.communicationHostAllow,
-                    no: l10n.communicationHostDeny,
-                  ),
-                );
-              },
-            ) ??
-            false;
       } else {
         LoadingView().hide();
         acceptHost =
