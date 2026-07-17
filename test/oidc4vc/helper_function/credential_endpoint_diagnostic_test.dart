@@ -49,6 +49,47 @@ void main() {
       );
     });
 
+    test('redacts token-shaped values even when their characters are safe', () {
+      for (final attackerValue in <String>[
+        'superSecretToken_123',
+        'eyJhbGciOiJFUzI1NiJ9.e30.signature',
+      ]) {
+        final requestOptions = RequestOptions(path: '/credential');
+        final exception = DioException(
+          type: DioExceptionType.badResponse,
+          requestOptions: requestOptions,
+          response: Response<dynamic>(
+            requestOptions: requestOptions,
+            statusCode: 400,
+            data: <String, dynamic>{'error': attackerValue},
+          ),
+        );
+
+        final log = credentialEndpointFailureLog(exception);
+
+        expect(log, 'stage=credential_endpoint status=400 error=unavailable');
+        expect(log, isNot(contains(attackerValue)));
+      }
+    });
+
+    test('allows a known OAuth error identifier', () {
+      final requestOptions = RequestOptions(path: '/credential');
+      final exception = DioException(
+        type: DioExceptionType.badResponse,
+        requestOptions: requestOptions,
+        response: Response<dynamic>(
+          requestOptions: requestOptions,
+          statusCode: 500,
+          data: const <String, dynamic>{'error': 'server_error'},
+        ),
+      );
+
+      expect(
+        credentialEndpointFailureLog(exception),
+        'stage=credential_endpoint status=500 error=server_error',
+      );
+    });
+
     test('distinguishes a local failure without rendering the exception', () {
       expect(
         credentialEndpointFailureLog(
