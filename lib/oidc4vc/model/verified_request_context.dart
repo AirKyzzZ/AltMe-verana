@@ -11,8 +11,8 @@ class VerifiedRequestContext {
     required this.encodedRequest,
     required Map<String, dynamic> payload,
   }) : payload = UnmodifiableMapView(_freezeMap(payload)),
-       verifiedClientId = _normalizedClientId(payload['client_id']),
-       verifierDid = _verifierDid(payload['client_id']);
+       verifiedClientId = _normalizedClientId(payload),
+       verifierDid = _verifierDid(payload);
 
   /// Creates a context only for an actual successful cryptographic check.
   static VerifiedRequestContext? fromVerification({
@@ -94,17 +94,21 @@ class VerifiedRequestContext {
     return value;
   }
 
-  static String? _normalizedClientId(dynamic value) {
+  static String? _normalizedClientId(Map<String, dynamic> payload) {
+    final value = payload['client_id'];
     if (value is! String || value.isEmpty) return null;
     const decentralizedIdentifierPrefix = 'decentralized_identifier:';
-    if (value.startsWith(decentralizedIdentifierPrefix)) {
+    if (payload['client_id_scheme'] == null &&
+        value.startsWith(decentralizedIdentifierPrefix)) {
       return value.substring(decentralizedIdentifierPrefix.length);
     }
     return value;
   }
 
-  static String? _verifierDid(dynamic value) {
-    final clientId = _normalizedClientId(value);
+  static String? _verifierDid(Map<String, dynamic> payload) {
+    final clientIdScheme = payload['client_id_scheme'];
+    if (clientIdScheme != null && clientIdScheme != 'did') return null;
+    final clientId = _normalizedClientId(payload);
     return clientId?.startsWith('did:') ?? false ? clientId : null;
   }
 }

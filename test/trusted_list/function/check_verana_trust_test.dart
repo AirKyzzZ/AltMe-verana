@@ -216,6 +216,22 @@ void main() {
       );
     });
 
+    test('does not resolve an attested client ID as a Verana DID', () async {
+      final entity = await getEntityFromVerana(
+        verifiedRequest: _verifiedRequest(<String, dynamic>{
+          'client_id_scheme': 'verifier_attestation',
+          'client_id': 'decentralized_identifier:$did',
+        }),
+        type: TrustedEntityType.verifier,
+        client: client,
+      );
+
+      expect(entity, isNull);
+      verifyNever(
+        () => client.get(any(), queryParameters: any(named: 'queryParameters')),
+      );
+    });
+
     test('does not call the resolver without verified context', () async {
       final entity = await getEntityFromVerana(
         verifiedRequest: null,

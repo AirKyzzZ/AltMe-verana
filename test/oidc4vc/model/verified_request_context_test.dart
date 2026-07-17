@@ -30,6 +30,22 @@ void main() {
       expect(context?.verifierDid, 'did:webvh:verifier');
     });
 
+    test('does not derive Verana identity from a non-DID explicit scheme', () {
+      final context = VerifiedRequestContext.fromVerification(
+        verification: VerificationType.verified,
+        encodedRequest: encodedRequest(const <String, dynamic>{
+          'client_id_scheme': 'verifier_attestation',
+          'client_id': 'decentralized_identifier:did:webvh:verifier',
+        }),
+      );
+
+      expect(
+        context?.verifiedClientId,
+        'decentralized_identifier:did:webvh:verifier',
+      );
+      expect(context?.verifierDid, isNull);
+    });
+
     test('does not create a context without cryptographic verification', () {
       for (final verification in <VerificationType>[
         VerificationType.notVerified,

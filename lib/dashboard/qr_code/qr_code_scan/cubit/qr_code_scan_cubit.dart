@@ -10,6 +10,7 @@ import 'package:altme/dashboard/home/tab_bar/credentials/present/pick/credential
 import 'package:altme/deep_link/deep_link.dart';
 import 'package:altme/enterprise/cubit/enterprise_cubit.dart';
 import 'package:altme/oidc4vc/helper_function/get_issuance_data.dart';
+import 'package:altme/oidc4vc/helper_function/request_object_verification_boundary.dart';
 import 'package:altme/oidc4vc/helper_function/select_request_object_verification_identity.dart';
 import 'package:altme/oidc4vc/oidc4vc.dart';
 import 'package:altme/query_by_example/query_by_example.dart';
@@ -1148,10 +1149,19 @@ class QRCodeScanCubit extends Cubit<QRCodeScanState> {
             );
           }
 
-          verifiedRequest = VerifiedRequestContext.fromVerification(
+          verifiedRequest = createVerifiedRequestContextForIdentity(
+            identity: identity,
             verification: isVerified,
             encodedRequest: encodedData,
           );
+          if (verifiedRequest == null) {
+            return emitError(
+              error: ResponseMessage(
+                message: ResponseString.RESPONSE_STRING_invalidRequest,
+              ),
+              callToAction: AiRequestAnalysisButton(link: state.uri.toString()),
+            );
+          }
         }
 
         emit(state.acceptHost(verifiedRequest: verifiedRequest));

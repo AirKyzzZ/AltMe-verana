@@ -8,6 +8,21 @@ class RequestObjectVerificationIdentity {
   final String? clientIdScheme;
 }
 
+const _supportedClientIdSchemes = <String>{
+  'did',
+  'redirect_uri',
+  'verifier_attestation',
+  'x509_san_dns',
+};
+
+const _supportedEmbeddedClientIdSchemes = <String>{
+  'redirect_uri',
+  'verifier_attestation',
+  'x509_san_dns',
+};
+
+const _decentralizedIdentifierPrefix = 'decentralized_identifier:';
+
 RequestObjectVerificationIdentity? selectRequestObjectVerificationIdentity({
   required Object? clientId,
   required Object? clientIdScheme,
@@ -16,16 +31,24 @@ RequestObjectVerificationIdentity? selectRequestObjectVerificationIdentity({
   if (clientId is! String || clientId.isEmpty) return null;
 
   if (clientIdScheme != null) {
-    if (clientIdScheme is! String || clientIdScheme.isEmpty) return null;
+    if (clientIdScheme is! String ||
+        !_supportedClientIdSchemes.contains(clientIdScheme)) {
+      return null;
+    }
+    if (_hasEmbeddedClientIdScheme(clientId)) return null;
+    if (clientIdScheme == 'did') {
+      if (!_isValidDid(clientId)) return null;
+    } else if (_isValidDid(clientId)) {
+      return null;
+    }
     return RequestObjectVerificationIdentity(
       clientId: clientId,
       clientIdScheme: clientIdScheme,
     );
   }
 
-  const decentralizedIdentifierPrefix = 'decentralized_identifier:';
-  if (clientId.startsWith(decentralizedIdentifierPrefix)) {
-    final did = clientId.substring(decentralizedIdentifierPrefix.length);
+  if (clientId.startsWith(_decentralizedIdentifierPrefix)) {
+    final did = clientId.substring(_decentralizedIdentifierPrefix.length);
     if (!_isValidDid(did)) return null;
     return RequestObjectVerificationIdentity(
       clientId: did,
@@ -40,15 +63,22 @@ RequestObjectVerificationIdentity? selectRequestObjectVerificationIdentity({
     );
   }
 
-  final parts = clientId.split(':');
-  if (parts.length == 2 && parts.every((part) => part.isNotEmpty)) {
+  final schemeSeparator = clientId.indexOf(':');
+  if (schemeSeparator <= 0 || schemeSeparator == clientId.length - 1) {
+    return null;
+  }
+
+  final embeddedScheme = clientId.substring(0, schemeSeparator);
+  final embeddedClientId = clientId.substring(schemeSeparator + 1);
+  if (_supportedEmbeddedClientIdSchemes.contains(embeddedScheme)) {
     return RequestObjectVerificationIdentity(
-      clientId: parts[1],
-      clientIdScheme: parts[0],
+      clientId: embeddedClientId,
+      clientIdScheme: embeddedScheme,
     );
   }
 
-  if (parts.length == 3 && parts.first.startsWith('did')) {
+  final parts = clientId.split(':');
+  if (parts.length == 3 && _isValidDid(clientId)) {
     return RequestObjectVerificationIdentity(
       clientId: clientId,
       clientIdScheme: null,
@@ -56,6 +86,15 @@ RequestObjectVerificationIdentity? selectRequestObjectVerificationIdentity({
   }
 
   return null;
+}
+
+bool _hasEmbeddedClientIdScheme(String clientId) {
+  if (clientId.startsWith(_decentralizedIdentifierPrefix)) return true;
+  final schemeSeparator = clientId.indexOf(':');
+  if (schemeSeparator <= 0) return false;
+  return _supportedEmbeddedClientIdSchemes.contains(
+    clientId.substring(0, schemeSeparator),
+  );
 }
 
 bool _isValidDid(String value) {

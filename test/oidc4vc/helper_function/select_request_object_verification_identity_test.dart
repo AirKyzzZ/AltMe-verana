@@ -41,6 +41,47 @@ void main() {
       expect(identity?.clientId, 'verifier.example');
     });
 
+    test('preserves an explicit DID scheme with an unprefixed DID', () {
+      final identity = selectRequestObjectVerificationIdentity(
+        clientId: did,
+        clientIdScheme: 'did',
+        draft22AndAbove: false,
+      );
+
+      expect(identity?.clientIdScheme, 'did');
+      expect(identity?.clientId, did);
+    });
+
+    test('rejects a separate scheme combined with an embedded scheme', () {
+      for (final entry in <(String, String)>[
+        ('did', prefixedDid),
+        ('verifier_attestation', prefixedDid),
+        ('x509_san_dns', 'x509_san_dns:verifier.example'),
+        ('redirect_uri', 'redirect_uri:https://verifier.example/callback'),
+      ]) {
+        expect(
+          selectRequestObjectVerificationIdentity(
+            clientId: entry.$2,
+            clientIdScheme: entry.$1,
+            draft22AndAbove: false,
+          ),
+          isNull,
+          reason: '${entry.$1} with ${entry.$2}',
+        );
+      }
+    });
+
+    test('rejects a non-DID explicit scheme with a DID client ID', () {
+      expect(
+        selectRequestObjectVerificationIdentity(
+          clientId: did,
+          clientIdScheme: 'verifier_attestation',
+          draft22AndAbove: false,
+        ),
+        isNull,
+      );
+    });
+
     test('preserves Draft 22 embedded scheme selection', () {
       final identity = selectRequestObjectVerificationIdentity(
         clientId: 'x509_san_dns:verifier.example',
@@ -50,6 +91,63 @@ void main() {
 
       expect(identity?.clientIdScheme, 'x509_san_dns');
       expect(identity?.clientId, 'verifier.example');
+    });
+
+    test('splits Draft 22 embedded schemes on the first colon', () {
+      for (final entry in <(String, String, String)>[
+        (
+          'redirect_uri:https://verifier.example/callback',
+          'redirect_uri',
+          'https://verifier.example/callback',
+        ),
+        (
+          'verifier_attestation:urn:example:verifier',
+          'verifier_attestation',
+          'urn:example:verifier',
+        ),
+      ]) {
+        final identity = selectRequestObjectVerificationIdentity(
+          clientId: entry.$1,
+          clientIdScheme: null,
+          draft22AndAbove: true,
+        );
+
+        expect(identity?.clientIdScheme, entry.$2, reason: entry.$1);
+        expect(identity?.clientId, entry.$3, reason: entry.$1);
+      }
+    });
+
+    test('rejects unsupported or empty Draft 22 embedded schemes', () {
+      for (final clientId in <String>[
+        'unsupported:verifier.example',
+        'didnot:method:value',
+        'x509_san_uri:https://verifier.example',
+        'redirect_uri:',
+      ]) {
+        expect(
+          selectRequestObjectVerificationIdentity(
+            clientId: clientId,
+            clientIdScheme: null,
+            draft22AndAbove: true,
+          ),
+          isNull,
+          reason: clientId,
+        );
+      }
+    });
+
+    test('rejects unsupported or empty explicit schemes', () {
+      for (final scheme in <String>['', 'unsupported']) {
+        expect(
+          selectRequestObjectVerificationIdentity(
+            clientId: 'verifier.example',
+            clientIdScheme: scheme,
+            draft22AndAbove: false,
+          ),
+          isNull,
+          reason: scheme,
+        );
+      }
     });
 
     test('does not broaden Draft 20 unprefixed or unsupported identities', () {
