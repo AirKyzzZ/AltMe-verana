@@ -38,6 +38,7 @@ void main() {
     credentials: <VeranaTrustCredential>[
       VeranaTrustCredential(
         ecsType: 'ECS-SERVICE',
+        result: 'VALID',
         issuedBy: 'did:webvh:issuer.example',
         claims: <String, dynamic>{
           'name': 'Verifier service',
@@ -50,6 +51,7 @@ void main() {
       ),
       VeranaTrustCredential(
         ecsType: 'ECS-ORG',
+        result: 'VALID',
         claims: <String, dynamic>{
           'name': 'Verifier organization',
           'address': '1 Trust Street',
@@ -114,4 +116,50 @@ void main() {
 
     expect(loaderCalls, 2);
   });
+
+  testWidgets(
+    'excludes invalid and indeterminate credentials from trust evidence',
+    (WidgetTester tester) async {
+      const invalidService = 'Invalid service must not render';
+      const missingResultOrganization = 'Missing result must not render';
+      const unknownService = 'Unknown result must not render';
+
+      await tester.pumpWidget(
+        page(
+          () async => const VeranaTrustDetails(
+            did: did,
+            trustStatus: VeranaTrustStatus.trusted,
+            production: true,
+            credentials: <VeranaTrustCredential>[
+              VeranaTrustCredential(
+                ecsType: 'ECS-SERVICE',
+                result: 'VALID',
+                claims: <String, dynamic>{'name': 'Valid service'},
+              ),
+              VeranaTrustCredential(
+                ecsType: 'ECS-SERVICE',
+                result: 'INVALID',
+                claims: <String, dynamic>{'name': invalidService},
+              ),
+              VeranaTrustCredential(
+                ecsType: 'ECS-ORG',
+                claims: <String, dynamic>{'name': missingResultOrganization},
+              ),
+              VeranaTrustCredential(
+                ecsType: 'ECS-SERVICE',
+                result: 'UNKNOWN',
+                claims: <String, dynamic>{'name': unknownService},
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Valid service'), findsOneWidget);
+      expect(find.text(invalidService), findsNothing);
+      expect(find.text(missingResultOrganization), findsNothing);
+      expect(find.text(unknownService), findsNothing);
+    },
+  );
 }

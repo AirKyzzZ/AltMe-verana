@@ -297,7 +297,8 @@ class _ResolverAttribution extends StatelessWidget {
 }
 
 bool _isKnownCredential(VeranaTrustCredential credential) =>
-    credential.ecsType == 'ECS-SERVICE' || credential.ecsType == 'ECS-ORG';
+    credential.isValid &&
+    (credential.ecsType == 'ECS-SERVICE' || credential.ecsType == 'ECS-ORG');
 
 String _trustStatusLabel(VeranaTrustStatus status) => switch (status) {
   VeranaTrustStatus.trusted => 'Trusted',

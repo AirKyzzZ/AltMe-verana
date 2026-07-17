@@ -81,9 +81,32 @@ void main() {
 
     expect(details?.credentials, hasLength(2));
     expect(details?.credentials.first.ecsType, 'ECS-SERVICE');
+    expect(details?.credentials.first.isValid, isTrue);
     expect(details?.credentials.first.issuedBy, 'did:webvh:issuer');
     expect(details?.credentials[1].claims['countryCode'], 'FR');
   });
+
+  test(
+    'does not treat invalid or indeterminate credentials as valid evidence',
+    () {
+      final details = parseVeranaTrustDetails(<String, dynamic>{
+        'did': did,
+        'trustStatus': 'TRUSTED',
+        'production': true,
+        'credentials': <dynamic>[
+          <String, dynamic>{'ecsType': 'ECS-SERVICE', 'result': 'INVALID'},
+          <String, dynamic>{'ecsType': 'ECS-ORG'},
+          <String, dynamic>{'ecsType': 'ECS-SERVICE', 'result': 'UNKNOWN'},
+        ],
+      }, did);
+
+      expect(details?.credentials, hasLength(3));
+      expect(
+        details?.credentials.every((credential) => !credential.isValid),
+        isTrue,
+      );
+    },
+  );
 
   test('rejects full details for a mismatched DID', () {
     expect(

@@ -36,6 +36,8 @@ class VeranaTrustCredential {
   final String? issuedBy;
   final String? presentedBy;
   final Map<String, dynamic> claims;
+
+  bool get isValid => result == 'VALID';
 }
 
 class VeranaTrustDetails extends VeranaTrustResolution {
