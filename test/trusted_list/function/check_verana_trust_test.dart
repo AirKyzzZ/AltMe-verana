@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:altme/app/shared/dio_client/dio_client.dart';
+import 'package:altme/oidc4vc/model/verified_request_context.dart';
 import 'package:altme/trusted_list/function/check_verana_trust.dart';
 import 'package:altme/trusted_list/model/trusted_entity.dart';
 import 'package:altme/trusted_list/model/verana_trust.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:oidc4vc/oidc4vc.dart';
 
 class MockDioClient extends Mock implements DioClient {}
 
@@ -16,99 +18,96 @@ String _jwt(Map<String, dynamic> payload) {
   return 'e30.$encoded.signature';
 }
 
+VerifiedRequestContext _verifiedRequest(Map<String, dynamic> payload) =>
+    VerifiedRequestContext.fromVerification(
+      verification: VerificationType.verified,
+      encodedRequest: _jwt(payload),
+      payload: payload,
+    )!;
+
 void main() {
-  group('getVerifierClientId', () {
-    test('prefers the identity from the signed request payload', () {
+  group('getVerifierClientIdFromVerifiedRequest', () {
+    test('uses the identity from a verified request context', () {
+      final verifiedRequest = VerifiedRequestContext.fromVerification(
+        verification: VerificationType.verified,
+        encodedRequest: _jwt(<String, dynamic>{
+          'client_id': 'did:webvh:verified',
+        }),
+        payload: const <String, dynamic>{'client_id': 'did:webvh:verified'},
+      );
+
       expect(
-        getVerifierClientId(
-          authorizationUriClientId: 'did:webvh:outer',
-          requestPayload: <String, dynamic>{'client_id': 'did:webvh:signed'},
-        ),
-        'did:webvh:signed',
+        getVerifierClientIdFromVerifiedRequest(verifiedRequest),
+        'did:webvh:verified',
       );
     });
 
     test('normalizes a decentralized identifier client id', () {
+      final verifiedRequest = VerifiedRequestContext.fromVerification(
+        verification: VerificationType.verified,
+        encodedRequest: _jwt(<String, dynamic>{
+          'client_id': 'decentralized_identifier:did:webvh:verified',
+        }),
+        payload: const <String, dynamic>{
+          'client_id': 'decentralized_identifier:did:webvh:verified',
+        },
+      );
+
       expect(
-        getVerifierClientId(
-          authorizationUriClientId: 'did:webvh:outer',
-          requestPayload: <String, dynamic>{
-            'client_id': 'decentralized_identifier:did:webvh:signed',
-          },
-        ),
-        'did:webvh:signed',
+        getVerifierClientIdFromVerifiedRequest(verifiedRequest),
+        'did:webvh:verified',
       );
     });
 
-    test('rejects an unsigned request instead of using the outer URI', () {
-      expect(
-        getVerifierClientId(
-          authorizationUriClientId: 'did:webvh:outer',
-          requestPayload: null,
-        ),
-        isNull,
-      );
-    });
-
-    test('rejects a signed request payload without a client id', () {
-      expect(
-        getVerifierClientId(
-          authorizationUriClientId: 'did:webvh:outer',
-          requestPayload: <String, dynamic>{},
-        ),
-        isNull,
-      );
-    });
-
-    test('rejects an empty signed client id', () {
-      expect(
-        getVerifierClientId(
-          authorizationUriClientId: 'did:webvh:outer',
-          requestPayload: <String, dynamic>{'client_id': ''},
-        ),
-        isNull,
-      );
+    test('rejects a forged request without verified context', () {
+      expect(getVerifierClientIdFromVerifiedRequest(null), isNull);
     });
   });
 
   group('getPresentationVcTypes', () {
     test('extracts DCQL vct values', () {
-      final request = _jwt(<String, dynamic>{
-        'dcql_query': <String, dynamic>{
-          'credentials': <Map<String, dynamic>>[
-            <String, dynamic>{
-              'meta': <String, dynamic>{
-                'vct_values': <String>['urn:example:one', 'urn:example:two'],
-              },
+      expect(
+        getPresentationVcTypesFromVerifiedRequest(
+          _verifiedRequest(<String, dynamic>{
+            'dcql_query': <String, dynamic>{
+              'credentials': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'meta': <String, dynamic>{
+                    'vct_values': <String>[
+                      'urn:example:one',
+                      'urn:example:two',
+                    ],
+                  },
+                },
+              ],
             },
-          ],
-        },
-      });
-
-      expect(getPresentationVcTypes(request), <String>[
-        'urn:example:one',
-        'urn:example:two',
-      ]);
+          }),
+        ),
+        <String>['urn:example:one', 'urn:example:two'],
+      );
     });
 
     test('extracts presentation definition constants', () {
-      final request = _jwt(<String, dynamic>{
-        'presentation_definition': <String, dynamic>{
-          'input_descriptors': <Map<String, dynamic>>[
-            <String, dynamic>{
-              'constraints': <String, dynamic>{
-                'fields': <Map<String, dynamic>>[
-                  <String, dynamic>{
-                    'filter': <String, dynamic>{'const': 'urn:example:vc'},
+      expect(
+        getPresentationVcTypesFromVerifiedRequest(
+          _verifiedRequest(<String, dynamic>{
+            'presentation_definition': <String, dynamic>{
+              'input_descriptors': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'constraints': <String, dynamic>{
+                    'fields': <Map<String, dynamic>>[
+                      <String, dynamic>{
+                        'filter': <String, dynamic>{'const': 'urn:example:vc'},
+                      },
+                    ],
                   },
-                ],
-              },
+                },
+              ],
             },
-          ],
-        },
-      });
-
-      expect(getPresentationVcTypes(request), <String>['urn:example:vc']);
+          }),
+        ),
+        <String>['urn:example:vc'],
+      );
     });
   });
 
@@ -136,9 +135,11 @@ void main() {
         );
 
         final entity = await getEntityFromVerana(
-          entityId: did,
+          verifiedRequest: _verifiedRequest(<String, dynamic>{
+            'client_id': did,
+            'presentation_definition': <String, dynamic>{},
+          }),
           type: TrustedEntityType.verifier,
-          vcTypes: <String>['urn:example:vc'],
           client: client,
         );
 
@@ -174,9 +175,10 @@ void main() {
         ).thenAnswer((_) async => response);
 
         final entity = await getEntityFromVerana(
-          entityId: did,
+          verifiedRequest: _verifiedRequest(<String, dynamic>{
+            'client_id': did,
+          }),
           type: TrustedEntityType.verifier,
-          vcTypes: <String>['urn:example:vc'],
           client: client,
         );
 
@@ -186,9 +188,10 @@ void main() {
 
     test('does not call the resolver for a non-DID identifier', () async {
       final entity = await getEntityFromVerana(
-        entityId: 'https://example.com',
+        verifiedRequest: _verifiedRequest(<String, dynamic>{
+          'client_id': 'https://example.com',
+        }),
         type: TrustedEntityType.verifier,
-        vcTypes: <String>['urn:example:vc'],
         client: client,
       );
 

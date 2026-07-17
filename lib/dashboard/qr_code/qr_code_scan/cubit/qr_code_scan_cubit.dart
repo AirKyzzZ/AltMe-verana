@@ -166,6 +166,7 @@ class QRCodeScanCubit extends Cubit<QRCodeScanState> {
         uri: uri,
         qrScanStatus: QrScanStatus.loading,
         isScan: isScan,
+        clearVerifiedRequest: true,
       ),
     );
 
@@ -1053,6 +1054,7 @@ class QRCodeScanCubit extends Cubit<QRCodeScanState> {
       final Map<String, dynamic> payload = jwtDecode.parseJwt(
         encodedData as String,
       );
+      VerifiedRequestContext? verifiedRequest;
       var clientId = payload['client_id'].toString();
       //check Signature
       try {
@@ -1169,9 +1171,15 @@ class QRCodeScanCubit extends Cubit<QRCodeScanState> {
               callToAction: AiRequestAnalysisButton(link: state.uri.toString()),
             );
           }
+
+          verifiedRequest = VerifiedRequestContext.fromVerification(
+            verification: isVerified,
+            encodedRequest: encodedData,
+            payload: payload,
+          );
         }
 
-        emit(state.acceptHost());
+        emit(state.acceptHost(verifiedRequest: verifiedRequest));
       } catch (e) {
         rethrow;
       }

@@ -1,71 +1,50 @@
 import 'package:altme/app/shared/constants/parameters.dart';
 import 'package:altme/app/shared/dio_client/dio_client.dart';
+import 'package:altme/oidc4vc/model/verified_request_context.dart';
 import 'package:altme/trusted_list/model/trusted_entity.dart';
 import 'package:altme/trusted_list/model/verana_trust.dart';
-import 'package:jwt_decode/jwt_decode.dart';
 
-/// Best-effort extraction of the requested credential type(s) from an OID4VP
-/// request (DCQL or presentation_definition), used to populate the synthesised
-/// Verana [TrustedEntity]. Falls back to a neutral, non-empty value so the
-/// entity model's invariant (issuers/verifiers must carry vcTypes) holds even
-/// when the request shape is unexpected.
-List<String> getPresentationVcTypes(String encodedRequest) {
-  try {
-    final payload = JWTDecode().parseJwt(encodedRequest);
-    final dcql = payload['dcql_query'];
-    if (dcql is Map && dcql['credentials'] is List) {
-      final vcts = <String>[];
-      for (final credential in dcql['credentials'] as List) {
-        final meta = credential is Map ? credential['meta'] : null;
-        final vctValues = meta is Map ? meta['vct_values'] : null;
-        if (vctValues is List) {
-          vcts.addAll(vctValues.map((dynamic e) => e.toString()));
-        }
+/// Extracts requested credential types from a cryptographically verified
+/// OID4VP request, retaining the entity model's non-empty `vcTypes` invariant.
+List<String> getPresentationVcTypesFromVerifiedRequest(
+  VerifiedRequestContext verifiedRequest,
+) {
+  final dcql = verifiedRequest.payload['dcql_query'];
+  if (dcql is Map && dcql['credentials'] is List) {
+    final vcts = <String>[];
+    for (final credential in dcql['credentials'] as List) {
+      final meta = credential is Map ? credential['meta'] : null;
+      final vctValues = meta is Map ? meta['vct_values'] : null;
+      if (vctValues is List) {
+        vcts.addAll(vctValues.map((dynamic e) => e.toString()));
       }
-      if (vcts.isNotEmpty) return vcts;
     }
-    final pd = payload['presentation_definition'];
-    if (pd is Map && pd['input_descriptors'] is List) {
-      final vcts = <String>[];
-      for (final descriptor in pd['input_descriptors'] as List) {
-        final constraints = descriptor is Map
-            ? descriptor['constraints']
-            : null;
-        final fields = constraints is Map ? constraints['fields'] : null;
-        if (fields is List) {
-          for (final field in fields) {
-            final filter = field is Map ? field['filter'] : null;
-            if (filter is Map && filter['const'] != null) {
-              vcts.add(filter['const'].toString());
-            }
+    if (vcts.isNotEmpty) return vcts;
+  }
+  final pd = verifiedRequest.payload['presentation_definition'];
+  if (pd is Map && pd['input_descriptors'] is List) {
+    final vcts = <String>[];
+    for (final descriptor in pd['input_descriptors'] as List) {
+      final constraints = descriptor is Map ? descriptor['constraints'] : null;
+      final fields = constraints is Map ? constraints['fields'] : null;
+      if (fields is List) {
+        for (final field in fields) {
+          final filter = field is Map ? field['filter'] : null;
+          if (filter is Map && filter['const'] != null) {
+            vcts.add(filter['const'].toString());
           }
         }
       }
-      if (vcts.isNotEmpty) return vcts;
     }
-  } catch (_) {
-    // fall through to the neutral default
+    if (vcts.isNotEmpty) return vcts;
   }
   return <String>['verana:resolved'];
 }
 
-/// Uses the signed request object's client id when one is available.
-///
-/// The outer authorization URI is transport metadata and may be attacker
-/// controlled. AltMe verifies the request object signature against the client
-/// id inside that object, so the trust lookup must use the same identity.
-String? getVerifierClientId({
-  required String? authorizationUriClientId,
-  required Map<String, dynamic>? requestPayload,
-}) {
-  final signedClientId = requestPayload?['client_id'];
-  if (signedClientId is! String || signedClientId.isEmpty) return null;
-  const decentralizedIdentifierPrefix = 'decentralized_identifier:';
-  if (signedClientId.startsWith(decentralizedIdentifierPrefix)) {
-    return signedClientId.substring(decentralizedIdentifierPrefix.length);
-  }
-  return signedClientId;
-}
+/// Returns an identity only when it originated in a verified request context.
+String? getVerifierClientIdFromVerifiedRequest(
+  VerifiedRequestContext? verifiedRequest,
+) => verifiedRequest?.verifiedClientId;
 
 /// Resolves a DID's trust status against the Verana trust registry.
 ///
@@ -73,11 +52,11 @@ String? getVerifierClientId({
 /// `TRUSTED`. Returns `null` for a non-DID id, a non-TRUSTED status, or any
 /// error (fail-closed: never surface trust we could not positively resolve).
 Future<TrustedEntity?> getEntityFromVerana({
-  required String? entityId,
+  required VerifiedRequestContext verifiedRequest,
   required TrustedEntityType type,
-  required List<String> vcTypes,
   required DioClient client,
 }) async {
+  final entityId = verifiedRequest.verifierDid;
   if (entityId == null || !entityId.startsWith('did:')) return null;
   try {
     final dynamic response = await client
@@ -98,7 +77,7 @@ Future<TrustedEntity?> getEntityFromVerana({
     return VeranaTrustedEntity(
       id: entityId,
       type: type,
-      vcTypes: vcTypes,
+      vcTypes: getPresentationVcTypesFromVerifiedRequest(verifiedRequest),
       resolution: resolution,
     );
   } catch (_) {

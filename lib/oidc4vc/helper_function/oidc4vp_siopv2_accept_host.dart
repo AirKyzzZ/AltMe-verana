@@ -8,6 +8,7 @@ import 'package:altme/dashboard/qr_code/widget/developer_mode_dialog.dart';
 import 'package:altme/l10n/l10n.dart';
 import 'package:altme/oidc4vc/helper_function/get_payload.dart';
 import 'package:altme/oidc4vc/helper_function/oidc4vp_prompt.dart';
+import 'package:altme/oidc4vc/model/verified_request_context.dart';
 import 'package:altme/oidc4vp_transaction/widget/accept_oidc4_vp_transaction_page.dart';
 import 'package:altme/scan/cubit/scan_cubit.dart';
 import 'package:altme/trusted_list/function/check_issuer_is_trusted.dart';
@@ -26,20 +27,24 @@ Future<void> oidc4vpSiopV2AcceptHost({
   required DioClient client,
   required bool showPrompt,
   required Issuer approvedIssuer,
+  required VerifiedRequestContext? verifiedRequest,
 }) async {
   final l10n = context.l10n;
+  final processingUri = verifiedRequest?.bindToUri(uri) ?? uri;
 
-  /// verification case
-  final String? requestUri = uri.queryParameters['request_uri'];
-  final String? request = uri.queryParameters['request'];
-  late dynamic encodedData;
-  Map<String, dynamic>? response;
+  final String? requestUri = processingUri.queryParameters['request_uri'];
+  final String? request = processingUri.queryParameters['request'];
+  String? encodedRequest;
+  Map<String, dynamic>? requestPayload;
 
-  if (requestUri != null || request != null) {
-    encodedData = await getPayload(client, requestUri, request);
-    response = decodePayload(
+  if (verifiedRequest != null) {
+    encodedRequest = verifiedRequest.encodedRequest;
+    requestPayload = verifiedRequest.payload;
+  } else if (requestUri != null || request != null) {
+    encodedRequest = await getPayload(client, requestUri, request) as String?;
+    requestPayload = decodePayload(
       jwtDecode: JWTDecode(),
-      token: encodedData as String,
+      token: encodedRequest!,
     );
   }
 
@@ -48,32 +53,35 @@ Future<void> oidc4vpSiopV2AcceptHost({
 
     late String url;
 
-    if (requestUri != null || request != null) {
-      final clientId = getClientIdForPresentation(
-        uri.queryParameters['client_id'],
-      );
+    if (requestPayload != null) {
+      final clientId =
+          requestPayload['client_id']?.toString() ??
+          getClientIdForPresentation(
+            processingUri.queryParameters['client_id'],
+          );
 
       url = getUpdatedUrlForSIOPV2OIC4VP(
-        uri: uri,
-        response: response!,
+        uri: processingUri,
+        response: requestPayload,
         clientId: clientId.toString(),
       );
       formattedData = await getFormattedStringOIDC4VPSIOPV2FromRequest(
         url: url,
         client: client,
-        response: response,
+        response: requestPayload,
       );
-    } else if (uri.queryParameters['presentation_definition'] != null ||
-        uri.queryParameters['presentation_definition_uri'] != null) {
+    } else if (processingUri.queryParameters['presentation_definition'] !=
+            null ||
+        processingUri.queryParameters['presentation_definition_uri'] != null) {
       final Map<String, dynamic>? presentationDefinition =
-          await getPresentationDefinition(uri: uri, client: client);
+          await getPresentationDefinition(uri: processingUri, client: client);
       final Map<String, dynamic>? clientMetaData = await getClientMetada(
         client: client,
-        uri: uri,
+        uri: processingUri,
       );
       formattedData = getFormattedStringOIDC4VPSIOPV2(
         '',
-        uri.queryParameters,
+        processingUri.queryParameters,
         clientMetaData,
         presentationDefinition,
       );
@@ -87,7 +95,7 @@ Future<void> oidc4vpSiopV2AcceptHost({
           context: context,
           builder: (_) {
             return DeveloperModeDialog(
-              uri: uri,
+              uri: processingUri,
               onDisplay: () async {
                 final returnedValue = await Navigator.of(context).push<dynamic>(
                   JsonViewerPage.route(
@@ -116,18 +124,14 @@ Future<void> oidc4vpSiopV2AcceptHost({
   final trustedListEnabled =
       profile.profileSetting.walletSecurityOptions.trustedList;
   final trustedList = profile.trustedList;
-  late TrustedEntity? trustedEntity;
-  if (trustedListEnabled) {
+  TrustedEntity? trustedEntity;
+  if (trustedListEnabled && verifiedRequest != null) {
     try {
       if (trustedList == null) {
         throw Exception('Missing trusted list.');
       }
 
-      // get new issuer open id configuration from signed metadata
-      final clientId = getVerifierClientId(
-        authorizationUriClientId: uri.queryParameters['client_id'],
-        requestPayload: response,
-      );
+      final clientId = getVerifierClientIdFromVerifiedRequest(verifiedRequest);
       trustedEntity = getEntityFromTrustedList(
         trustedList,
         clientId,
@@ -136,11 +140,11 @@ Future<void> oidc4vpSiopV2AcceptHost({
       if (trustedEntity != null) {
         checkPresentationIsTrusted(
           trustedEntity: trustedEntity,
-          encodedPresentation: encodedData as String,
+          encodedPresentation: verifiedRequest.encodedRequest,
         );
         isCertificateValid(
           trustedEntity: trustedEntity,
-          signedMetadata: encodedData,
+          signedMetadata: verifiedRequest.encodedRequest,
         );
         // issuer has passed the trusted list checks
       } else if (clientId != null) {
@@ -148,9 +152,8 @@ Future<void> oidc4vpSiopV2AcceptHost({
         // Verana vouches for the entity itself, so the x509/vcType checks above
         // (which model the static ETSI-style list) do not apply to this path.
         trustedEntity = await getEntityFromVerana(
-          entityId: clientId,
+          verifiedRequest: verifiedRequest,
           type: TrustedEntityType.verifier,
-          vcTypes: getPresentationVcTypes(encodedData as String),
           client: client,
         );
       }
@@ -158,15 +161,13 @@ Future<void> oidc4vpSiopV2AcceptHost({
       context.read<QRCodeScanCubit>().emitError(error: e);
       return;
     }
-  } else {
-    trustedEntity = null;
   }
-  if (response != null) {
-    if (response.containsKey('transaction_data')) {
+  if (requestPayload != null) {
+    if (requestPayload.containsKey('transaction_data')) {
       LoadingView().hide();
       unawaited(
         context.read<ScanCubit>().addTransactionData(
-          response['transaction_data'] as List<dynamic>,
+          requestPayload['transaction_data'] as List<dynamic>,
         ),
       );
 
@@ -174,7 +175,7 @@ Future<void> oidc4vpSiopV2AcceptHost({
         AcceptOidc4VpTransactionPage.route(
           trustedListEnabled: trustedListEnabled,
           trustedEntity: trustedEntity,
-          uri: uri,
+          uri: processingUri,
           showPrompt: showPrompt,
           client: client,
         ),
@@ -188,7 +189,7 @@ Future<void> oidc4vpSiopV2AcceptHost({
     l10n: l10n,
     trustedListEnabled: trustedListEnabled,
     trustedEntity: trustedEntity,
-    uri: uri,
+    uri: processingUri,
     client: client,
     showPrompt: showPrompt,
   ).show();

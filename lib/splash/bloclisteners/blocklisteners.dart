@@ -280,6 +280,7 @@ final qrCodeBlocListener = BlocListener<QRCodeScanCubit, QRCodeScanState>(
               client: client,
               showPrompt: showPrompt,
               approvedIssuer: approvedIssuer,
+              verifiedRequest: state.verifiedRequest,
             );
             return;
           }

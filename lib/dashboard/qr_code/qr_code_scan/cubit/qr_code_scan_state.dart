@@ -9,6 +9,7 @@ class QRCodeScanState extends Equatable {
     this.isScan = false,
     this.message,
     this.dialogData,
+    this.verifiedRequest,
   });
 
   factory QRCodeScanState.fromJson(Map<String, dynamic> json) =>
@@ -22,6 +23,8 @@ class QRCodeScanState extends Equatable {
 
   final StateMessage? message;
   final String? dialogData;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final VerifiedRequestContext? verifiedRequest;
 
   Map<String, dynamic> toJson() => _$QRCodeScanStateToJson(this);
 
@@ -30,14 +33,17 @@ class QRCodeScanState extends Equatable {
       status: QrScanStatus.loading,
       isScan: isScan ?? this.isScan,
       uri: uri,
+      verifiedRequest: verifiedRequest,
     );
   }
 
-  QRCodeScanState acceptHost() {
+  QRCodeScanState acceptHost({VerifiedRequestContext? verifiedRequest}) {
+    final acceptedVerifiedRequest = verifiedRequest ?? this.verifiedRequest;
     return QRCodeScanState(
       status: QrScanStatus.acceptHost,
       isScan: isScan,
-      uri: uri,
+      uri: acceptedVerifiedRequest?.bindToUri(uri!) ?? uri,
+      verifiedRequest: acceptedVerifiedRequest,
     );
   }
 
@@ -47,6 +53,7 @@ class QRCodeScanState extends Equatable {
       message: message,
       isScan: isScan,
       uri: uri,
+      verifiedRequest: verifiedRequest,
     );
   }
 
@@ -57,6 +64,8 @@ class QRCodeScanState extends Equatable {
     Uri? uri,
     bool? isScan,
     String? dialogData,
+    VerifiedRequestContext? verifiedRequest,
+    bool clearVerifiedRequest = false,
   }) {
     late Uri? newUri;
     if (uri.toString().startsWith('${Parameters.universalLink}/oidc4vc?uri=')) {
@@ -77,9 +86,20 @@ class QRCodeScanState extends Equatable {
       uri: newUri ?? this.uri,
       route: route, // route should be cleared when one route is done
       dialogData: dialogData,
+      verifiedRequest: clearVerifiedRequest
+          ? null
+          : verifiedRequest ?? this.verifiedRequest,
     );
   }
 
   @override
-  List<Object?> get props => [status, uri, route, isScan, message, dialogData];
+  List<Object?> get props => [
+    status,
+    uri,
+    route,
+    isScan,
+    message,
+    dialogData,
+    verifiedRequest,
+  ];
 }
