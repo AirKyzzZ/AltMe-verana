@@ -12,6 +12,7 @@ import 'package:altme/oidc4vp_transaction/widget/accept_oidc4_vp_transaction_pag
 import 'package:altme/scan/cubit/scan_cubit.dart';
 import 'package:altme/trusted_list/function/check_issuer_is_trusted.dart';
 import 'package:altme/trusted_list/function/check_presentation_is_trusted.dart';
+import 'package:altme/trusted_list/function/check_verana_trust.dart';
 import 'package:altme/trusted_list/function/is_certificate_valid.dart';
 import 'package:altme/trusted_list/model/trusted_entity.dart';
 import 'package:flutter/material.dart';
@@ -123,9 +124,13 @@ Future<void> oidc4vpSiopV2AcceptHost({
       }
 
       // get new issuer open id configuration from signed metadata
+      final clientId = getVerifierClientId(
+        authorizationUriClientId: uri.queryParameters['client_id'],
+        requestPayload: response,
+      );
       trustedEntity = getEntityFromTrustedList(
         trustedList,
-        uri.queryParameters['client_id'],
+        clientId,
         TrustedEntityType.verifier,
       );
       if (trustedEntity != null) {
@@ -138,6 +143,16 @@ Future<void> oidc4vpSiopV2AcceptHost({
           signedMetadata: encodedData,
         );
         // issuer has passed the trusted list checks
+      } else if (clientId != null) {
+        // Fall back to live Verana resolution for DID-identified verifiers.
+        // Verana vouches for the entity itself, so the x509/vcType checks above
+        // (which model the static ETSI-style list) do not apply to this path.
+        trustedEntity = await getEntityFromVerana(
+          entityId: clientId,
+          type: TrustedEntityType.verifier,
+          vcTypes: getPresentationVcTypes(encodedData as String),
+          client: client,
+        );
       }
     } catch (e) {
       context.read<QRCodeScanCubit>().emitError(error: e);

@@ -143,6 +143,12 @@ class Parameters {
 
   static const String trustedListUrl =
       'https://talao.co/.well-known/trusted-list.json';
+
+  // Verana trust registry resolver. When the trusted list has no static entry
+  // for a DID-identified issuer/verifier, the wallet resolves its trust status
+  // live against this endpoint (fail-closed).
+  static const String veranaResolverUrl =
+      'https://resolver.testnet.verana.network';
   // seed color for the app Theme
   // Altme
   static const Color seedColor = Color(0xff6600FF);
