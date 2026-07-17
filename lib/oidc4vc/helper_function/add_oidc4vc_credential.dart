@@ -8,6 +8,31 @@ import 'package:credential_manifest/credential_manifest.dart';
 import 'package:jwt_decode/jwt_decode.dart';
 import 'package:oidc4vc/oidc4vc.dart';
 
+String extractIssuedCredential(dynamic response) {
+  if (response is Map) {
+    final credential = response['credential'];
+    if (credential is String && credential.isNotEmpty) return credential;
+
+    final credentials = response['credentials'];
+    if (credentials is List && credentials.isNotEmpty) {
+      final first = credentials.first;
+      if (first is Map) {
+        final batchCredential = first['credential'];
+        if (batchCredential is String && batchCredential.isNotEmpty) {
+          return batchCredential;
+        }
+      }
+    }
+  }
+
+  throw ResponseMessage(
+    data: {
+      'error': 'invalid_format',
+      'error_description': 'The format of vc is incorrect.',
+    },
+  );
+}
+
 Future<void> addOIDC4VCCredential({
   required dynamic encodedCredentialFromOIDC4VC,
   required CredentialsCubit credentialsCubit,
@@ -87,18 +112,8 @@ Future<void> addOIDC4VCCredential({
         );
       }
 
-      // get the array of credentials from ['credentials'] key
-      final data = encodedCredentialFromOIDC4VC['credentials'] as List<dynamic>;
-      if (data.isEmpty) {
-        throw ResponseMessage(
-          data: {
-            'error': 'invalid_format',
-            'error_description': 'The format of vc is incorrect.',
-          },
-        );
-      }
       credentialFromOIDC4VC = getCredentialDataFromJson(
-        data: data.first['credential'] as String,
+        data: extractIssuedCredential(encodedCredentialFromOIDC4VC),
         format: format,
         jwtDecode: jwtDecode,
         credentialType: credentialType,
