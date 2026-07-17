@@ -4,6 +4,7 @@ import 'package:altme/app/shared/dio_client/dio_client.dart';
 import 'package:altme/oidc4vc/model/verified_request_context.dart';
 import 'package:altme/trusted_list/function/check_verana_trust.dart';
 import 'package:altme/trusted_list/model/trusted_entity.dart';
+import 'package:altme/trusted_list/model/trusted_list.dart';
 import 'package:altme/trusted_list/model/verana_trust.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -22,7 +23,6 @@ VerifiedRequestContext _verifiedRequest(Map<String, dynamic> payload) =>
     VerifiedRequestContext.fromVerification(
       verification: VerificationType.verified,
       encodedRequest: _jwt(payload),
-      payload: payload,
     )!;
 
 void main() {
@@ -33,7 +33,6 @@ void main() {
         encodedRequest: _jwt(<String, dynamic>{
           'client_id': 'did:webvh:verified',
         }),
-        payload: const <String, dynamic>{'client_id': 'did:webvh:verified'},
       );
 
       expect(
@@ -48,9 +47,6 @@ void main() {
         encodedRequest: _jwt(<String, dynamic>{
           'client_id': 'decentralized_identifier:did:webvh:verified',
         }),
-        payload: const <String, dynamic>{
-          'client_id': 'decentralized_identifier:did:webvh:verified',
-        },
       );
 
       expect(
@@ -61,6 +57,25 @@ void main() {
 
     test('rejects a forged request without verified context', () {
       expect(getVerifierClientIdFromVerifiedRequest(null), isNull);
+    });
+
+    test('does not resolve a static trusted verifier without context', () {
+      final entity = getStaticVerifierFromVerifiedRequest(
+        trustedList: TrustedList(
+          ecosystem: 'test',
+          lastUpdated: '2026-07-17',
+          entities: <TrustedEntity>[
+            TrustedEntity(
+              id: 'did:webvh:trusted-verifier',
+              type: TrustedEntityType.verifier,
+              vcTypes: const <String>['urn:example:vc'],
+            ),
+          ],
+        ),
+        verifiedRequest: null,
+      );
+
+      expect(entity, isNull);
     });
   });
 
@@ -191,6 +206,19 @@ void main() {
         verifiedRequest: _verifiedRequest(<String, dynamic>{
           'client_id': 'https://example.com',
         }),
+        type: TrustedEntityType.verifier,
+        client: client,
+      );
+
+      expect(entity, isNull);
+      verifyNever(
+        () => client.get(any(), queryParameters: any(named: 'queryParameters')),
+      );
+    });
+
+    test('does not call the resolver without verified context', () async {
+      final entity = await getEntityFromVerana(
+        verifiedRequest: null,
         type: TrustedEntityType.verifier,
         client: client,
       );

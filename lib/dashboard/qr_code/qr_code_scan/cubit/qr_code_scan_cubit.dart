@@ -1175,7 +1175,6 @@ class QRCodeScanCubit extends Cubit<QRCodeScanState> {
           verifiedRequest = VerifiedRequestContext.fromVerification(
             verification: isVerified,
             encodedRequest: encodedData,
-            payload: payload,
           );
         }
 

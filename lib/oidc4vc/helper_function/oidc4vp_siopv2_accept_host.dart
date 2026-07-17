@@ -11,7 +11,6 @@ import 'package:altme/oidc4vc/helper_function/oidc4vp_prompt.dart';
 import 'package:altme/oidc4vc/model/verified_request_context.dart';
 import 'package:altme/oidc4vp_transaction/widget/accept_oidc4_vp_transaction_page.dart';
 import 'package:altme/scan/cubit/scan_cubit.dart';
-import 'package:altme/trusted_list/function/check_issuer_is_trusted.dart';
 import 'package:altme/trusted_list/function/check_presentation_is_trusted.dart';
 import 'package:altme/trusted_list/function/check_verana_trust.dart';
 import 'package:altme/trusted_list/function/is_certificate_valid.dart';
@@ -132,10 +131,9 @@ Future<void> oidc4vpSiopV2AcceptHost({
       }
 
       final clientId = getVerifierClientIdFromVerifiedRequest(verifiedRequest);
-      trustedEntity = getEntityFromTrustedList(
-        trustedList,
-        clientId,
-        TrustedEntityType.verifier,
+      trustedEntity = getStaticVerifierFromVerifiedRequest(
+        trustedList: trustedList,
+        verifiedRequest: verifiedRequest,
       );
       if (trustedEntity != null) {
         checkPresentationIsTrusted(

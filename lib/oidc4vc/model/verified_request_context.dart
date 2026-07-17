@@ -1,5 +1,7 @@
 import 'dart:collection';
+import 'dart:convert';
 
+import 'package:jwt_decode/jwt_decode.dart';
 import 'package:oidc4vc/oidc4vc.dart';
 
 /// A request object that was cryptographically verified before it entered the
@@ -16,9 +18,9 @@ class VerifiedRequestContext {
   static VerifiedRequestContext? fromVerification({
     required VerificationType verification,
     required String encodedRequest,
-    required Map<String, dynamic> payload,
   }) {
     if (verification != VerificationType.verified) return null;
+    final payload = JWTDecode().parseJwt(encodedRequest);
     return VerifiedRequestContext._(
       encodedRequest: encodedRequest,
       payload: payload,
@@ -30,13 +32,51 @@ class VerifiedRequestContext {
   final String? verifiedClientId;
   final String? verifierDid;
 
-  /// Replaces transport-indirected request material with verified bytes.
+  /// Binds processing to the signed request instead of outer URI parameters.
   Uri bindToUri(Uri uri) {
     final parameters = Map<String, String>.from(uri.queryParameters)
-      ..remove('request_uri')
-      ..['request'] = encodedRequest;
+      ..removeWhere(
+        (key, _) =>
+            _securityParameterNames.contains(key) || payload.containsKey(key),
+      );
+
+    for (final entry in payload.entries) {
+      if (entry.key == 'request' ||
+          entry.key == 'request_uri' ||
+          entry.value == null) {
+        continue;
+      }
+      parameters[entry.key] = _queryValue(entry.value);
+    }
+
+    parameters['request'] = encodedRequest;
     return uri.replace(queryParameters: parameters);
   }
+
+  static const _securityParameterNames = <String>{
+    'request',
+    'request_uri',
+    'client_id',
+    'client_id_scheme',
+    'redirect_uri',
+    'response_uri',
+    'response_type',
+    'response_mode',
+    'nonce',
+    'state',
+    'scope',
+    'claims',
+    'presentation_definition',
+    'presentation_definition_uri',
+    'dcql_query',
+    'registration',
+    'client_metadata',
+    'client_metadata_uri',
+    'transaction_data',
+  };
+
+  static String _queryValue(dynamic value) =>
+      value is Map || value is List ? jsonEncode(value) : value.toString();
 
   static Map<String, dynamic> _freezeMap(Map<String, dynamic> input) =>
       <String, dynamic>{
