@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:altme/app/app.dart';
 import 'package:altme/dashboard/dashboard.dart';
+import 'package:altme/oidc4vc/helper_function/credential_endpoint_diagnostic.dart';
 import 'package:dio/dio.dart';
 import 'package:oidc4vc/oidc4vc.dart';
 
@@ -220,6 +221,7 @@ Future<dynamic> getSingleCredentialData({
   required Map<String, dynamic> credentialData,
   required String publicKeyForDPop,
 }) async {
+  final log = getLogger('OIDC4VCI');
   final credentialEndpoint = profileCubit.oidc4vc.readCredentialEndpoint(
     openIdConfiguration,
   );
@@ -244,7 +246,7 @@ Future<dynamic> getSingleCredentialData({
     final credentialResponseDataValue = await profileCubit.oidc4vc
         .getSingleCredential(
           accessToken: accessToken,
-          dio: Dio(),
+          dio: dio,
           credentialData: credentialData,
           credentialEndpoint: credentialEndpoint,
           dPop: dPop,
@@ -252,6 +254,7 @@ Future<dynamic> getSingleCredentialData({
 
     return credentialResponseDataValue;
   } catch (e) {
+    log.e(credentialEndpointFailureLog(e));
     rethrow;
   }
 }
