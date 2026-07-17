@@ -1,4 +1,5 @@
 import 'package:altme/app/shared/dio_client/dio_client.dart';
+import 'package:altme/oidc4vp_transaction/widget/accept_oidc4_vp_transaction_page.dart';
 import 'package:altme/trusted_list/model/trusted_entity.dart';
 import 'package:altme/trusted_list/model/verana_trust.dart';
 import 'package:altme/trusted_list/widget/trusted_entity_details.dart';
@@ -64,5 +65,28 @@ void main() {
     expect(find.text('Static verifier'), findsOneWidget);
     expect(find.text('Static trusted-list description'), findsOneWidget);
     expect(find.byKey(const Key('verana-trust-card')), findsNothing);
+  });
+
+  testWidgets('transaction display opens Verana trust details', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DisplayEntity(
+          trustedEntity: veranaEntity,
+          notTrustedText: 'Untrusted verifier',
+          trustedListEnabled: true,
+          uri: Uri.parse('https://verifier.example/authorize'),
+          client: _MockDioClient(),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('verana-trust-card')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('verana-trust-card')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(VeranaTrustDetailsPage), findsOneWidget);
   });
 }

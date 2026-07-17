@@ -154,7 +154,10 @@ class DisplayEntity extends StatelessWidget {
     if (trustedEntity != null) {
       return Padding(
         padding: const EdgeInsets.all(8),
-        child: TrustedEntityDetails(trustedEntity: trustedEntity!),
+        child: TrustedEntityDetails(
+          trustedEntity: trustedEntity!,
+          client: client,
+        ),
       );
     } else {
       return Padding(

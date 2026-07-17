@@ -58,7 +58,10 @@ class Oidc4VpPrompt {
                     child: SingleChildScrollView(
                       child: Column(
                         children: [
-                          TrustedEntityDetails(trustedEntity: trustedEntity!),
+                          TrustedEntityDetails(
+                            trustedEntity: trustedEntity!,
+                            client: client,
+                          ),
                           Oidc4VpPrompt.buildPromptContentFutureBuilder(
                             promptContent,
                           ),
