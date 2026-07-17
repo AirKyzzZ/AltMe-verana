@@ -978,8 +978,9 @@ class OIDC4VC {
     Map<String, dynamic>? credentialDefinition;
     String? vct;
     String? format;
+    final usesCredentialConfigurationId = credential is String;
 
-    if (credential is String) {
+    if (usesCredentialConfigurationId) {
       credentialType = credential;
     } else if (credential is Map<String, dynamic>) {
       types = (credential['types'] as List<dynamic>)
@@ -1000,7 +1001,8 @@ class OIDC4VC {
     if (credentialType.startsWith('https://api.preprod.ebsi.eu')) {
       format = 'jwt_vc';
       types = [];
-    } else if (hasMatchingCredentialConfiguration) {
+    } else if (usesCredentialConfigurationId &&
+        hasMatchingCredentialConfiguration) {
       final credentialSupported =
           credentialConfigurationsSupported[credentialType];
 

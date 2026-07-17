@@ -5,7 +5,7 @@ import 'package:oidc4vc/oidc4vc.dart';
 
 void main() {
   test(
-    'draft 15 uses the offered credential configuration when legacy metadata '
+    'draft 15 uses a string credential configuration id when legacy metadata '
     'is also present',
     () async {
       const issuer = 'https://issuer.example/oid4vci/example';
@@ -121,4 +121,72 @@ void main() {
       expect(header['kid'], kid);
     },
   );
+
+  test('legacy credential map keeps its legacy metadata when both generations '
+      'are present', () async {
+    final metadata = OpenIdConfiguration.fromJson(const <String, dynamic>{
+      'credentials_supported': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'legacy-attestation',
+          'format': 'jwt_vc',
+          'types': <String>['VerifiableCredential', 'LegacyAttestation'],
+        },
+      ],
+      'credential_configurations_supported': <String, dynamic>{
+        'LegacyAttestation': <String, dynamic>{
+          'format': 'dc+sd-jwt',
+          'vct': 'https://issuer.example/vct/current-attestation',
+        },
+      },
+    });
+
+    final credential = await OIDC4VC().getCredentialData(
+      openIdConfiguration: metadata,
+      credential: const <String, dynamic>{
+        'format': 'jwt_vc',
+        'types': <String>['VerifiableCredential', 'LegacyAttestation'],
+      },
+    );
+
+    expect(credential.$1, 'LegacyAttestation');
+    expect(credential.$2, const <String>[
+      'VerifiableCredential',
+      'LegacyAttestation',
+    ]);
+    expect(credential.$3, isNull);
+    expect(credential.$4, isNull);
+    expect(credential.$5, 'jwt_vc');
+  });
+
+  test('string configuration id falls back to legacy metadata', () async {
+    final metadata = OpenIdConfiguration.fromJson(const <String, dynamic>{
+      'credentials_supported': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'legacy-attestation',
+          'format': 'vc+sd-jwt',
+          'types': <String>['VerifiableCredential', 'LegacyAttestation'],
+        },
+      ],
+      'credential_configurations_supported': <String, dynamic>{
+        'modern-attestation': <String, dynamic>{
+          'format': 'dc+sd-jwt',
+          'vct': 'https://issuer.example/vct/modern-attestation',
+        },
+      },
+    });
+
+    final credential = await OIDC4VC().getCredentialData(
+      openIdConfiguration: metadata,
+      credential: 'legacy-attestation',
+    );
+
+    expect(credential.$1, 'legacy-attestation');
+    expect(credential.$2, const <String>[
+      'VerifiableCredential',
+      'LegacyAttestation',
+    ]);
+    expect(credential.$3, isNull);
+    expect(credential.$4, isNull);
+    expect(credential.$5, 'vc+sd-jwt');
+  });
 }
