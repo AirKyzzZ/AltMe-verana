@@ -31,14 +31,19 @@ void main() {
     });
 
     test('does not create a context without cryptographic verification', () {
-      final context = VerifiedRequestContext.fromVerification(
-        verification: VerificationType.notVerified,
-        encodedRequest: encodedRequest(const <String, dynamic>{
-          'client_id': 'did:webvh:trusted-verifier',
-        }),
-      );
+      for (final verification in <VerificationType>[
+        VerificationType.notVerified,
+        VerificationType.unKnown,
+      ]) {
+        final context = VerifiedRequestContext.fromVerification(
+          verification: verification,
+          encodedRequest: encodedRequest(const <String, dynamic>{
+            'client_id': 'did:webvh:trusted-verifier',
+          }),
+        );
 
-      expect(context, isNull);
+        expect(context, isNull, reason: verification.name);
+      }
     });
 
     test('binds a URI to signed request parameters', () {

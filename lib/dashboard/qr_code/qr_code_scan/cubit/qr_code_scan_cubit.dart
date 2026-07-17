@@ -10,6 +10,7 @@ import 'package:altme/dashboard/home/tab_bar/credentials/present/pick/credential
 import 'package:altme/deep_link/deep_link.dart';
 import 'package:altme/enterprise/cubit/enterprise_cubit.dart';
 import 'package:altme/oidc4vc/helper_function/get_issuance_data.dart';
+import 'package:altme/oidc4vc/helper_function/select_request_object_verification_identity.dart';
 import 'package:altme/oidc4vc/oidc4vc.dart';
 import 'package:altme/query_by_example/query_by_example.dart';
 import 'package:altme/scan/scan.dart';
@@ -1055,7 +1056,6 @@ class QRCodeScanCubit extends Cubit<QRCodeScanState> {
         encodedData as String,
       );
       VerifiedRequestContext? verifiedRequest;
-      var clientId = payload['client_id'].toString();
       //check Signature
       try {
         /// client_id_scheme = did, you need tio use the universal resolver
@@ -1077,45 +1077,21 @@ class QRCodeScanCubit extends Cubit<QRCodeScanState> {
 
         Map<String, dynamic>? publicKeyJwk;
 
-        var clientIdScheme = payload['client_id_scheme'];
-
-        /// With OIDC4VP Draft 22 and above the client_id_scheme is removed
-        /// from the authorization request but the value is added to the
-        /// client_id to be the new client_id value
-        ///
-        /// in the client_id Authorization Request parameter and other places
-        /// where the Client Identifier is used, the Client Identifier Schemes
-        /// are prefixed to the usual Client Identifier, separated by a :
-        /// (colon) character: <client_id_scheme>:<orig_client_id>
-
-        if (clientIdScheme == null) {
-          final draft22AndAbove = profileCubit
-              .state
-              .model
-              .profileSetting
-              .selfSovereignIdentityOptions
-              .customOidc4vcProfile
-              .oidc4vpDraft
-              .draft22AndAbove;
-
-          if (draft22AndAbove) {
-            final parts = clientId.split(':');
-            if (parts.length == 2) {
-              clientIdScheme = parts[0];
-              clientId = parts[1];
-            } else if (parts[0].startsWith('did') && parts.length == 3) {
-            } else {
-              final error = {
-                'error': 'invalid_request',
-                'error_description': 'Invalid client_id',
-              };
-              unawaited(
-                scanCubit.sendErrorToServer(uri: state.uri!, data: error),
-              );
-              throw ResponseMessage(data: error);
-            }
-          }
+        final identity = selectRequestObjectVerificationIdentity(
+          clientId: payload['client_id'],
+          clientIdScheme: payload['client_id_scheme'],
+          draft22AndAbove: customOidc4vcProfile.oidc4vpDraft.draft22AndAbove,
+        );
+        if (identity == null) {
+          final error = {
+            'error': 'invalid_request',
+            'error_description': 'Invalid client_id',
+          };
+          unawaited(scanCubit.sendErrorToServer(uri: state.uri!, data: error));
+          throw ResponseMessage(data: error);
         }
+        final clientId = identity.clientId;
+        final clientIdScheme = identity.clientIdScheme;
 
         if (clientIdScheme != null) {
           final Map<String, dynamic> header = decodeHeader(
