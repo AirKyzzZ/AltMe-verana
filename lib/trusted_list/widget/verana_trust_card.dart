@@ -1,3 +1,4 @@
+import 'package:altme/app/shared/constants/parameters.dart';
 import 'package:altme/app/shared/dio_client/dio_client.dart';
 import 'package:altme/trusted_list/model/verana_trust.dart';
 import 'package:altme/trusted_list/widget/verana_trust_details_page.dart';
@@ -19,7 +20,7 @@ class VeranaTrustCard extends StatelessWidget {
     final block = resolution.evaluatedAtBlock;
     final summary = <String>[
       _trustStatusLabel(resolution.trustStatus),
-      if (resolution.production) 'Production' else 'Test',
+      if (Parameters.veranaNetworkProduction) 'Production' else 'TESTNET',
       if (block != null) 'Block $block',
     ].join(' · ');
 

@@ -134,37 +134,33 @@ void main() {
       client = MockDioClient();
     });
 
-    test(
-      'returns an entity only for the exact trusted production DID',
-      () async {
-        when(
-          () =>
-              client.get(any(), queryParameters: any(named: 'queryParameters')),
-        ).thenAnswer(
-          (_) async => <String, dynamic>{
-            'did': did,
-            'trustStatus': 'TRUSTED',
-            'production': true,
-            'evaluatedAtBlock': 4380399,
-          },
-        );
+    test('returns an entity only for the exact trusted DID', () async {
+      when(
+        () => client.get(any(), queryParameters: any(named: 'queryParameters')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'did': did,
+          'trustStatus': 'TRUSTED',
+          'production': true,
+          'evaluatedAtBlock': 4380399,
+        },
+      );
 
-        final entity = await getEntityFromVerana(
-          verifiedRequest: _verifiedRequest(<String, dynamic>{
-            'client_id': did,
-            'presentation_definition': <String, dynamic>{},
-          }),
-          type: TrustedEntityType.verifier,
-          client: client,
-        );
+      final entity = await getEntityFromVerana(
+        verifiedRequest: _verifiedRequest(<String, dynamic>{
+          'client_id': did,
+          'presentation_definition': <String, dynamic>{},
+        }),
+        type: TrustedEntityType.verifier,
+        client: client,
+      );
 
-        expect(entity, isA<VeranaTrustedEntity>());
-        final veranaEntity = entity! as VeranaTrustedEntity;
-        expect(veranaEntity.resolution.trustStatus, VeranaTrustStatus.trusted);
-        expect(veranaEntity.resolution.production, isTrue);
-        expect(veranaEntity.resolution.evaluatedAtBlock, 4380399);
-      },
-    );
+      expect(entity, isA<VeranaTrustedEntity>());
+      final veranaEntity = entity! as VeranaTrustedEntity;
+      expect(veranaEntity.resolution.trustStatus, VeranaTrustStatus.trusted);
+      expect(veranaEntity.resolution.production, isTrue);
+      expect(veranaEntity.resolution.evaluatedAtBlock, 4380399);
+    });
 
     for (final response in <Map<String, dynamic>>[
       <String, dynamic>{
@@ -176,11 +172,6 @@ void main() {
         'did': did,
         'trustStatus': 'PARTIAL',
         'production': true,
-      },
-      <String, dynamic>{
-        'did': did,
-        'trustStatus': 'TRUSTED',
-        'production': false,
       },
     ]) {
       test('fails closed for $response', () async {
@@ -200,6 +191,27 @@ void main() {
         expect(entity, isNull);
       });
     }
+
+    test('keeps trust when the resolver reports production false', () async {
+      when(
+        () => client.get(any(), queryParameters: any(named: 'queryParameters')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'did': did,
+          'trustStatus': 'TRUSTED',
+          'production': false,
+        },
+      );
+
+      final entity = await getEntityFromVerana(
+        verifiedRequest: _verifiedRequest(<String, dynamic>{'client_id': did}),
+        type: TrustedEntityType.verifier,
+        client: client,
+      );
+
+      expect(entity, isA<VeranaTrustedEntity>());
+      expect((entity! as VeranaTrustedEntity).resolution.production, isFalse);
+    });
 
     test('does not call the resolver for a non-DID identifier', () async {
       final entity = await getEntityFromVerana(
@@ -254,45 +266,41 @@ void main() {
       client = MockDioClient();
     });
 
-    test(
-      'returns full details only for the exact trusted production DID',
-      () async {
-        when(
-          () =>
-              client.get(any(), queryParameters: any(named: 'queryParameters')),
-        ).thenAnswer(
-          (_) async => <String, dynamic>{
-            'did': did,
-            'trustStatus': 'TRUSTED',
-            'production': true,
-            'credentials': <Map<String, dynamic>>[
-              <String, dynamic>{
-                'ecsType': 'ECS-SERVICE',
-                'issuedBy': 'did:webvh:issuer',
-                'claims': <String, dynamic>{'name': 'Unfold Verifier'},
-              },
-              <String, dynamic>{
-                'ecsType': 'ECS-ORG',
-                'claims': <String, dynamic>{'countryCode': 'FR'},
-              },
-            ],
-          },
-        );
+    test('returns full details only for the exact trusted DID', () async {
+      when(
+        () => client.get(any(), queryParameters: any(named: 'queryParameters')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'did': did,
+          'trustStatus': 'TRUSTED',
+          'production': true,
+          'credentials': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'ecsType': 'ECS-SERVICE',
+              'issuedBy': 'did:webvh:issuer',
+              'claims': <String, dynamic>{'name': 'Unfold Verifier'},
+            },
+            <String, dynamic>{
+              'ecsType': 'ECS-ORG',
+              'claims': <String, dynamic>{'countryCode': 'FR'},
+            },
+          ],
+        },
+      );
 
-        final details = await getVeranaTrustDetails(did: did, client: client);
+      final details = await getVeranaTrustDetails(did: did, client: client);
 
-        expect(details, isA<VeranaTrustDetails>());
-        expect(details?.credentials, hasLength(2));
-        expect(details?.credentials.first.issuedBy, 'did:webvh:issuer');
-        expect(details?.credentials[1].claims['countryCode'], 'FR');
-        verify(
-          () => client.get(
-            any(),
-            queryParameters: <String, dynamic>{'did': did, 'detail': 'full'},
-          ),
-        ).called(1);
-      },
-    );
+      expect(details, isA<VeranaTrustDetails>());
+      expect(details?.credentials, hasLength(2));
+      expect(details?.credentials.first.issuedBy, 'did:webvh:issuer');
+      expect(details?.credentials[1].claims['countryCode'], 'FR');
+      verify(
+        () => client.get(
+          any(),
+          queryParameters: <String, dynamic>{'did': did, 'detail': 'full'},
+        ),
+      ).called(1);
+    });
 
     for (final response in <Map<String, dynamic>>[
       <String, dynamic>{
@@ -305,11 +313,6 @@ void main() {
         'trustStatus': 'PARTIAL',
         'production': true,
       },
-      <String, dynamic>{
-        'did': did,
-        'trustStatus': 'TRUSTED',
-        'production': false,
-      },
     ]) {
       test('fails closed for $response', () async {
         when(
@@ -320,6 +323,23 @@ void main() {
         expect(await getVeranaTrustDetails(did: did, client: client), isNull);
       });
     }
+
+    test('keeps details when the resolver reports production false', () async {
+      when(
+        () => client.get(any(), queryParameters: any(named: 'queryParameters')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'did': did,
+          'trustStatus': 'TRUSTED',
+          'production': false,
+        },
+      );
+
+      final details = await getVeranaTrustDetails(did: did, client: client);
+
+      expect(details, isA<VeranaTrustDetails>());
+      expect(details?.production, isFalse);
+    });
 
     test('does not call the resolver for a non-DID identifier', () async {
       expect(

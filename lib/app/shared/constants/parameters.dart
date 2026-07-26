@@ -149,6 +149,9 @@ class Parameters {
   // live against this endpoint (fail-closed).
   static const String veranaResolverUrl =
       'https://resolver.testnet.verana.network';
+  // [UW-CFG-2] label source; never the resolver's own production flag,
+  // which is wrong on testnet (verana-resolver#148).
+  static const bool veranaNetworkProduction = false;
   // seed color for the app Theme
   // Altme
   static const Color seedColor = Color(0xff6600FF);

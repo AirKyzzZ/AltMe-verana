@@ -39,7 +39,7 @@ void main() {
 
     expect(find.byKey(const Key('verana-trust-card')), findsOneWidget);
     expect(find.text('Verified by Verana Trust Registry'), findsOneWidget);
-    expect(find.textContaining('Trusted · Production'), findsOneWidget);
+    expect(find.textContaining('Trusted · TESTNET'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('verana-trust-card')));
     await tester.pumpAndSettle();

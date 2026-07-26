@@ -88,8 +88,7 @@ Future<TrustedEntity?> getEntityFromVerana({
         .timeout(const Duration(seconds: 10));
     final resolution = parseVeranaTrustResolution(response, entityId);
     if (resolution == null ||
-        resolution.trustStatus != VeranaTrustStatus.trusted ||
-        !resolution.production) {
+        resolution.trustStatus != VeranaTrustStatus.trusted) {
       return null;
     }
     return VeranaTrustedEntity(
@@ -116,9 +115,7 @@ Future<VeranaTrustDetails?> getVeranaTrustDetails({
         )
         .timeout(const Duration(seconds: 15));
     final details = parseVeranaTrustDetails(response, did);
-    if (details == null ||
-        details.trustStatus != VeranaTrustStatus.trusted ||
-        !details.production) {
+    if (details == null || details.trustStatus != VeranaTrustStatus.trusted) {
       return null;
     }
     return details;
