@@ -152,6 +152,9 @@ class Parameters {
   // [UW-CFG-2] label source; never the resolver's own production flag,
   // which is wrong on testnet (verana-resolver#148).
   static const bool veranaNetworkProduction = false;
+  // Q2/Q3 accreditation answers come from the VPR permission module; the
+  // resolver above answers Q1 only.
+  static const String veranaVprApiUrl = 'https://api.testnet.verana.network';
   // seed color for the app Theme
   // Altme
   static const Color seedColor = Color(0xff6600FF);
