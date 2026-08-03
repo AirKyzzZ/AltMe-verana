@@ -15,6 +15,7 @@ import 'package:altme/trusted_list/function/check_presentation_is_trusted.dart';
 import 'package:altme/trusted_list/function/check_verana_trust.dart';
 import 'package:altme/trusted_list/function/is_certificate_valid.dart';
 import 'package:altme/trusted_list/model/trusted_entity.dart';
+import 'package:altme/trusted_list/model/verana_trust.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jwt_decode/jwt_decode.dart';
@@ -124,13 +125,13 @@ Future<void> oidc4vpSiopV2AcceptHost({
       profile.profileSetting.walletSecurityOptions.trustedList;
   final trustedList = profile.trustedList;
   TrustedEntity? trustedEntity;
+  VeranaConsentTrust? veranaConsent;
   if (trustedListEnabled && verifiedRequest != null) {
     try {
       if (trustedList == null) {
         throw Exception('Missing trusted list.');
       }
 
-      final clientId = getVerifierClientIdFromVerifiedRequest(verifiedRequest);
       trustedEntity = getStaticVerifierFromVerifiedRequest(
         trustedList: trustedList,
         verifiedRequest: verifiedRequest,
@@ -145,14 +146,18 @@ Future<void> oidc4vpSiopV2AcceptHost({
           signedMetadata: verifiedRequest.encodedRequest,
         );
         // issuer has passed the trusted list checks
-      } else if (clientId != null) {
+      } else if (verifiedRequest.verifierDid != null) {
         // Fall back to live Verana resolution for DID-identified verifiers.
         // Verana vouches for the entity itself, so the x509/vcType checks above
         // (which model the static ETSI-style list) do not apply to this path.
-        trustedEntity = await getEntityFromVerana(
+        veranaConsent = await getVeranaConsentTrust(
+          did: verifiedRequest.verifierDid!,
+          client: client,
+        );
+        trustedEntity = veranaEntityFromConsent(
+          consent: veranaConsent,
           verifiedRequest: verifiedRequest,
           type: TrustedEntityType.verifier,
-          client: client,
         );
       }
     } catch (e) {
@@ -190,6 +195,8 @@ Future<void> oidc4vpSiopV2AcceptHost({
     uri: processingUri,
     client: client,
     showPrompt: showPrompt,
+    veranaConsent: veranaConsent,
+    verifiedRequest: verifiedRequest,
   ).show();
 
   // Default action if there is no prompt

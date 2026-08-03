@@ -1,9 +1,14 @@
 import 'package:altme/app/app.dart';
 import 'package:altme/dashboard/qr_code/qr_code_scan/cubit/qr_code_scan_cubit.dart';
 import 'package:altme/l10n/l10n.dart';
+import 'package:altme/oidc4vc/model/verified_request_context.dart';
 import 'package:altme/oidc4vc/widget/host_prompt_handler.dart';
+import 'package:altme/oidc4vc/widget/verana_consent_dialog.dart';
+import 'package:altme/trusted_list/function/check_verana_trust.dart';
 import 'package:altme/trusted_list/model/trusted_entity.dart';
+import 'package:altme/trusted_list/model/verana_trust.dart';
 import 'package:altme/trusted_list/widget/trusted_entity_details.dart';
+import 'package:altme/trusted_list/widget/verana_trust_chain_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -16,6 +21,8 @@ class Oidc4VpPrompt {
     required this.uri,
     required this.client,
     required this.showPrompt,
+    this.veranaConsent,
+    this.verifiedRequest,
   });
 
   /// Builds the FutureBuilder for prompt content
@@ -39,12 +46,39 @@ class Oidc4VpPrompt {
   final Uri uri;
   final DioClient client;
   final bool showPrompt;
+  final VeranaConsentTrust? veranaConsent;
+  final VerifiedRequestContext? verifiedRequest;
 
   Future<void> show() async {
     LoadingView().hide();
     late bool promptResult;
     if (trustedListEnabled) {
-      if (trustedEntity != null) {
+      if (veranaConsent != null) {
+        // The v3 trust card, with the accept action gated on the evaluation.
+        // A non-TRUSTED verdict keeps the existing warning subtitle and the
+        // inverted call to action.
+        final trusted = veranaConsent!.trustStatus == VeranaTrustStatus.trusted;
+        promptResult =
+            await showDialog<bool>(
+              context: context,
+              builder: (BuildContext context) {
+                return VeranaConsentDialog(
+                  title: l10n.scanPromptHost,
+                  subtitle: trusted ? null : l10n.notTrustedEntity,
+                  invertedCallToAction: !trusted,
+                  consent: veranaConsent!,
+                  kind: VeranaAskKind.request,
+                  vct: verifiedRequest == null
+                      ? null
+                      : getPresentationVctForAccreditation(verifiedRequest!),
+                  client: client,
+                  yesLabel: l10n.communicationHostAllow,
+                  noLabel: l10n.communicationHostDeny,
+                );
+              },
+            ) ??
+            false;
+      } else if (trustedEntity != null) {
         promptResult =
             await showDialog<bool>(
               context: context,
