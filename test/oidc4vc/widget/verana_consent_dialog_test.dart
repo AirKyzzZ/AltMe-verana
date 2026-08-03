@@ -154,6 +154,29 @@ void main() {
     },
   );
 
+  testWidgets('treats a throwing checker as could-not-determine', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      dialog(
+        trust: consent(VeranaTrustStatus.trusted),
+        checkAccreditation:
+            ({
+              required String did,
+              required VeranaPermissionRole role,
+              required DioClient client,
+              String? vct,
+            }) => Future<VeranaAccreditationCheck>.error(
+              Exception('checker crashed'),
+            ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(allowOnPressed(tester), isNotNull);
+    expect(find.byKey(const Key('verana-ask-block')), findsOneWidget);
+  });
+
   testWidgets('pops true only through the enabled accept action', (
     tester,
   ) async {

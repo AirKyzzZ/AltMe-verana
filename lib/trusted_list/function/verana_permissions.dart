@@ -217,37 +217,41 @@ Future<VeranaVctSchemaResolution> resolveVeranaVctSchema({
   if (!vct.startsWith('https://')) return const VeranaVctSchemaResolution();
 
   try {
-    final dynamic typeMetadata = await client
-        .get(vct)
-        .timeout(_permissionTimeout);
-    final credentialName = typeMetadata is Map
-        ? _asString(typeMetadata['name'])
-        : null;
-    final vtjscId = typeMetadata is Map
-        ? _asString(typeMetadata['relatedJsonSchemaCredentialId'])
-        : null;
-    if (vtjscId == null || !vtjscId.startsWith('https://')) {
-      return VeranaVctSchemaResolution(credentialName: credentialName);
-    }
+    // One deadline over both fetches, so the chain cannot hold the consent
+    // screen for twice the timeout.
+    return await Future(() async {
+      final dynamic typeMetadata = await client.get(vct);
+      final credentialName = typeMetadata is Map
+          ? _asString(typeMetadata['name'])
+          : null;
+      final vtjscId = typeMetadata is Map
+          ? _asString(typeMetadata['relatedJsonSchemaCredentialId'])
+          : null;
+      if (vtjscId == null || !vtjscId.startsWith('https://')) {
+        return VeranaVctSchemaResolution(credentialName: credentialName);
+      }
 
-    final dynamic vtjsc = await client.get(vtjscId).timeout(_permissionTimeout);
-    final credentialSubject = vtjsc is Map ? vtjsc['credentialSubject'] : null;
-    if (credentialSubject is! Map) {
-      return VeranaVctSchemaResolution(credentialName: credentialName);
-    }
-    // Live VTJSCs carry the pointer as `jsonSchema.$ref` (vpr:…/cs/v1/js/N)
-    // with a copy in `credentialSubject.id`; `$id` is the published-schema
-    // variant. Read all three.
-    final jsonSchema = credentialSubject['jsonSchema'];
-    final id =
-        (jsonSchema is Map
-            ? _asString(jsonSchema[r'$id']) ?? _asString(jsonSchema[r'$ref'])
-            : null) ??
-        _asString(credentialSubject['id']);
-    return VeranaVctSchemaResolution(
-      schemaId: veranaSchemaIdFromVct(id),
-      credentialName: credentialName,
-    );
+      final dynamic vtjsc = await client.get(vtjscId);
+      final credentialSubject = vtjsc is Map
+          ? vtjsc['credentialSubject']
+          : null;
+      if (credentialSubject is! Map) {
+        return VeranaVctSchemaResolution(credentialName: credentialName);
+      }
+      // Live VTJSCs carry the pointer as `jsonSchema.$ref` (vpr:…/cs/v1/js/N)
+      // with a copy in `credentialSubject.id`; `$id` is the published-schema
+      // variant. Read all three.
+      final jsonSchema = credentialSubject['jsonSchema'];
+      final id =
+          (jsonSchema is Map
+              ? _asString(jsonSchema[r'$id']) ?? _asString(jsonSchema[r'$ref'])
+              : null) ??
+          _asString(credentialSubject['id']);
+      return VeranaVctSchemaResolution(
+        schemaId: veranaSchemaIdFromVct(id),
+        credentialName: credentialName,
+      );
+    }).timeout(_permissionTimeout);
   } catch (_) {
     return const VeranaVctSchemaResolution(unreachable: true);
   }

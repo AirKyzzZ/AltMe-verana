@@ -59,14 +59,26 @@ class _VeranaConsentDialogState extends State<VeranaConsentDialog> {
   }
 
   Future<void> _check() async {
-    final check = await widget.checkAccreditation(
-      did: widget.consent.did,
-      role: widget.kind == VeranaAskKind.offer
-          ? VeranaPermissionRole.issuer
-          : VeranaPermissionRole.verifier,
-      client: widget.client,
-      vct: widget.vct,
-    );
+    VeranaAccreditationCheck check;
+    try {
+      check = await widget.checkAccreditation(
+        did: widget.consent.did,
+        role: widget.kind == VeranaAskKind.offer
+            ? VeranaPermissionRole.issuer
+            : VeranaPermissionRole.verifier,
+        client: widget.client,
+        vct: widget.vct,
+      );
+    } catch (_) {
+      // An unexpected checker failure is could-not-determine; it must never
+      // leave the accept action locked behind a check that will not end.
+      check = const VeranaAccreditationCheck(
+        granted: null,
+        reason:
+            'The Verana registry could not be reached, so this permission '
+            'could not be checked',
+      );
+    }
     if (!mounted) return;
     setState(() {
       _accreditation = check;

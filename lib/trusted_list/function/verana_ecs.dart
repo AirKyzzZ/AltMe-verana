@@ -71,7 +71,11 @@ String? _str(Map<String, dynamic>? claims, String key) {
 
 int? _int(Map<String, dynamic>? claims, String key) {
   final value = claims?[key];
-  return value is int ? value : null;
+  if (value is int) return value;
+  if (value is num && value.isFinite && value == value.roundToDouble()) {
+    return value.toInt();
+  }
+  return null;
 }
 
 // The published schemas are v4 (`<thing>Uri` + `<thing>DigestSri`) but the
