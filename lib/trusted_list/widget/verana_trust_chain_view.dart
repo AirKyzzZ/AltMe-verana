@@ -571,12 +571,15 @@ class _RegistryChip extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: _body,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _body,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -612,13 +615,16 @@ class _VerdictPill extends StatelessWidget {
             children: [
               const VeranaMark(size: 18),
               const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: tone,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  letterSpacing: 0.6,
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: tone,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
             ],
@@ -761,9 +767,12 @@ class _Conditions extends StatelessWidget {
               children: [
                 Icon(Icons.info_outline, size: 14, color: _faint),
                 SizedBox(width: 8),
-                Text(
-                  'No age restriction',
-                  style: TextStyle(color: _body, fontSize: 13),
+                Flexible(
+                  child: Text(
+                    'No age restriction',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: _body, fontSize: 13),
+                  ),
                 ),
               ],
             ),
@@ -793,7 +802,7 @@ class _ConditionRow extends StatelessWidget {
           children: [
             const Icon(Icons.lock, size: 14, color: _brand),
             const SizedBox(width: 8),
-            Flexible(
+            Expanded(
               child: Text(
                 label,
                 style: const TextStyle(
@@ -803,7 +812,7 @@ class _ConditionRow extends StatelessWidget {
                 ),
               ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             if (asset!.digest != null) ...[
               const Icon(Icons.check, size: 12, color: _ok),
               const SizedBox(width: 3),
