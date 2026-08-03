@@ -321,6 +321,7 @@ class MaterialAppDefinition extends StatelessWidget {
                 return MaterialApp(
                   locale: state.locale,
                   title: 'AltMe',
+                  debugShowCheckedModeBanner: false,
                   theme: AppTheme.seedThemeData(
                     Brightness.light,
                     profileState
