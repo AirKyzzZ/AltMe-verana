@@ -54,6 +54,18 @@ class VeranaTrustDetails extends VeranaTrustResolution {
   final List<VeranaTrustCredential> credentials;
 }
 
+/// The full trust context a consent surface renders: any verdict, with the
+/// ECS credentials. `details == null` means the resolver could not answer -
+/// could-not-verify, which is not a verdict.
+class VeranaConsentTrust {
+  const VeranaConsentTrust({required this.did, this.details});
+
+  final String did;
+  final VeranaTrustDetails? details;
+
+  VeranaTrustStatus? get trustStatus => details?.trustStatus;
+}
+
 class VeranaTrustedEntity extends TrustedEntity {
   VeranaTrustedEntity({
     required super.id,

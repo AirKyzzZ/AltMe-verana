@@ -63,6 +63,63 @@ TrustedEntity? getStaticVerifierFromVerifiedRequest({
   );
 }
 
+/// The first concrete requested credential type, for the Q3 accreditation
+/// check. `null` when the request names none (never the entity model's
+/// `verana:resolved` sentinel).
+String? getPresentationVctForAccreditation(
+  VerifiedRequestContext verifiedRequest,
+) {
+  for (final vct in getPresentationVcTypesFromVerifiedRequest(
+    verifiedRequest,
+  )) {
+    if (vct != 'verana:resolved') return vct;
+  }
+  return null;
+}
+
+/// Resolves the consent-time trust context with `detail=full`, so the card
+/// can render the ECS credentials for any verdict.
+Future<VeranaConsentTrust> getVeranaConsentTrust({
+  required String did,
+  required DioClient client,
+}) async {
+  if (!did.startsWith('did:')) return VeranaConsentTrust(did: did);
+  try {
+    final dynamic response = await client
+        .get(
+          '${Parameters.veranaResolverUrl}/v1/trust/resolve',
+          queryParameters: <String, dynamic>{'did': did, 'detail': 'full'},
+        )
+        .timeout(const Duration(seconds: 10));
+    return VeranaConsentTrust(
+      did: did,
+      details: parseVeranaTrustDetails(response, did),
+    );
+  } catch (_) {
+    return VeranaConsentTrust(did: did);
+  }
+}
+
+/// Returns a synthesised [TrustedEntity] only when Verana reports the DID as
+/// `TRUSTED` (fail-closed: never surface trust we could not positively
+/// resolve).
+VeranaTrustedEntity? veranaEntityFromConsent({
+  required VeranaConsentTrust consent,
+  required VerifiedRequestContext verifiedRequest,
+  required TrustedEntityType type,
+}) {
+  final details = consent.details;
+  if (details == null || details.trustStatus != VeranaTrustStatus.trusted) {
+    return null;
+  }
+  return VeranaTrustedEntity(
+    id: consent.did,
+    type: type,
+    vcTypes: getPresentationVcTypesFromVerifiedRequest(verifiedRequest),
+    resolution: details,
+  );
+}
+
 /// Resolves a DID's trust status against the Verana trust registry.
 ///
 /// Returns a synthesised [TrustedEntity] only when Verana reports the DID as
@@ -76,30 +133,12 @@ Future<TrustedEntity?> getEntityFromVerana({
   if (verifiedRequest == null) return null;
   final entityId = verifiedRequest.verifierDid;
   if (entityId == null || !entityId.startsWith('did:')) return null;
-  try {
-    final dynamic response = await client
-        .get(
-          '${Parameters.veranaResolverUrl}/v1/trust/resolve',
-          queryParameters: <String, dynamic>{
-            'did': entityId,
-            'detail': 'summary',
-          },
-        )
-        .timeout(const Duration(seconds: 10));
-    final resolution = parseVeranaTrustResolution(response, entityId);
-    if (resolution == null ||
-        resolution.trustStatus != VeranaTrustStatus.trusted) {
-      return null;
-    }
-    return VeranaTrustedEntity(
-      id: entityId,
-      type: type,
-      vcTypes: getPresentationVcTypesFromVerifiedRequest(verifiedRequest),
-      resolution: resolution,
-    );
-  } catch (_) {
-    return null;
-  }
+  final consent = await getVeranaConsentTrust(did: entityId, client: client);
+  return veranaEntityFromConsent(
+    consent: consent,
+    verifiedRequest: verifiedRequest,
+    type: type,
+  );
 }
 
 Future<VeranaTrustDetails?> getVeranaTrustDetails({

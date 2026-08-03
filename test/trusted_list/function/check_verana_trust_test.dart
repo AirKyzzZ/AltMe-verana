@@ -258,6 +258,102 @@ void main() {
     });
   });
 
+  group('getVeranaConsentTrust', () {
+    const did = 'did:webvh:example';
+    late MockDioClient client;
+
+    setUp(() {
+      client = MockDioClient();
+    });
+
+    test(
+      'keeps a non-TRUSTED verdict with its credentials for the card',
+      () async {
+        when(
+          () =>
+              client.get(any(), queryParameters: any(named: 'queryParameters')),
+        ).thenAnswer(
+          (_) async => <String, dynamic>{
+            'did': did,
+            'trustStatus': 'PARTIAL',
+            'production': false,
+            'credentials': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'ecsType': 'ECS-SERVICE',
+                'result': 'VALID',
+                'claims': <String, dynamic>{'name': 'Unfold Service'},
+              },
+            ],
+          },
+        );
+
+        final consent = await getVeranaConsentTrust(did: did, client: client);
+
+        expect(consent.trustStatus, VeranaTrustStatus.partial);
+        expect(consent.details?.credentials, hasLength(1));
+        verify(
+          () => client.get(
+            any(),
+            queryParameters: <String, dynamic>{'did': did, 'detail': 'full'},
+          ),
+        ).called(1);
+      },
+    );
+
+    test('reports could-not-verify when the resolver is unreachable', () async {
+      when(
+        () => client.get(any(), queryParameters: any(named: 'queryParameters')),
+      ).thenThrow(Exception('network down'));
+
+      final consent = await getVeranaConsentTrust(did: did, client: client);
+
+      expect(consent.trustStatus, isNull);
+      expect(consent.details, isNull);
+    });
+
+    test('does not call the resolver for a non-DID identifier', () async {
+      final consent = await getVeranaConsentTrust(
+        did: 'https://example.com',
+        client: client,
+      );
+
+      expect(consent.details, isNull);
+      verifyNever(
+        () => client.get(any(), queryParameters: any(named: 'queryParameters')),
+      );
+    });
+  });
+
+  group('getPresentationVctForAccreditation', () {
+    test('returns the first concrete requested vct', () {
+      expect(
+        getPresentationVctForAccreditation(
+          _verifiedRequest(<String, dynamic>{
+            'dcql_query': <String, dynamic>{
+              'credentials': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'meta': <String, dynamic>{
+                    'vct_values': <String>['urn:example:one'],
+                  },
+                },
+              ],
+            },
+          }),
+        ),
+        'urn:example:one',
+      );
+    });
+
+    test('never returns the entity model sentinel', () {
+      expect(
+        getPresentationVctForAccreditation(
+          _verifiedRequest(<String, dynamic>{'client_id': 'did:webvh:x'}),
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('getVeranaTrustDetails', () {
     const did = 'did:webvh:example';
     late MockDioClient client;
