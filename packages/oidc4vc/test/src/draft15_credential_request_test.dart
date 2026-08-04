@@ -118,7 +118,8 @@ void main() {
               as Map<String, dynamic>;
       expect(header['typ'], MediaType.proofOfOwnership.typ);
       expect(header['alg'], 'ES256');
-      expect(header['kid'], kid);
+      expect(header.containsKey('kid'), isFalse);
+      expect((header['jwk'] as Map<String, dynamic>)['x'], privateKey['x']);
     },
   );
 

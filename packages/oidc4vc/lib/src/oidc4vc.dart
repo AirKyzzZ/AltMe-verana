@@ -879,8 +879,23 @@ class OIDC4VC {
           };
 
         case ProofType.jwt:
+          final proofHeaderType = resolveProofHeaderType(
+            profileProofHeaderType: issuerTokenParameters.proofHeaderType,
+            openIdConfiguration: oidc4vcParameters.issuerOpenIdConfiguration,
+            credentialType: credentialType,
+          );
+
           final vcJwt = await getIssuerJwt(
-            tokenParameters: issuerTokenParameters,
+            tokenParameters: IssuerTokenParameters(
+              privateKey: issuerTokenParameters.privateKey,
+              did: issuerTokenParameters.did,
+              kid: issuerTokenParameters.kid,
+              issuer: issuerTokenParameters.issuer,
+              mediaType: issuerTokenParameters.mediaType,
+              proofHeaderType: proofHeaderType,
+              clientType: issuerTokenParameters.clientType,
+              clientId: issuerTokenParameters.clientId,
+            ),
             clientAuthentication: clientAuthentication,
             cnonce: nonce,
             iss: clientId,

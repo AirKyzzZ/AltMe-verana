@@ -15,6 +15,7 @@ export 'src/functions/generate_token.dart';
 export 'src/functions/list_to_string.dart';
 export 'src/functions/private_key.dart';
 export 'src/functions/public_key_base58_to_public_jwk.dart';
+export 'src/functions/resolve_proof_header_type.dart';
 export 'src/issuer_token_parameters.dart';
 export 'src/media_type.dart';
 export 'src/models/models.dart';

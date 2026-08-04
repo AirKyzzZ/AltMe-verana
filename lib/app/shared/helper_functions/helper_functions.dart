@@ -1152,6 +1152,7 @@ ResponseString getErrorResponseString(String errorString) {
     case 'unauthorized_client':
     case 'access_denied':
     case 'invalid_or_missing_proof':
+    case 'invalid_proof':
     case 'interaction_required':
       return ResponseString.RESPONSE_STRING_accessDenied;
 
