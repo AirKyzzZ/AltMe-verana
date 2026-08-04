@@ -5,5 +5,6 @@ export 'helper_function/get_authorization_uri_for_issuer.dart';
 export 'helper_function/get_credential.dart';
 export 'helper_function/get_credential_offer_json.dart';
 export 'helper_function/initiate_oidv4vc_credential_issuance.dart';
+export 'helper_function/verana_webvh_request_key.dart';
 export 'helper_function/verify_encoded_data.dart';
 export 'model/verified_request_context.dart';

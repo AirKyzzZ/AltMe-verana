@@ -1124,6 +1124,21 @@ class QRCodeScanCubit extends Cubit<QRCodeScanState> {
             throw ResponseMessage(data: error);
           }
 
+          // The OIDC4VC package resolves did:web, did:key and did:jwk but
+          // not did:webvh, so a Verana verifier's signed request object
+          // fails verification and surfaces as "The request is invalid"
+          // after the user has already consented.
+          if (clientId.startsWith('did:webvh:')) {
+            publicKeyJwk = await resolveWebvhRequestKey(
+              did: clientId,
+              kid: decodeHeader(
+                jwtDecode: jwtDecode,
+                token: encodedData,
+              )['kid']
+                  ?.toString(),
+            );
+          }
+
           final VerificationType isVerified = await verifyEncodedData(
             issuer: clientId,
             jwtDecode: jwtDecode,
