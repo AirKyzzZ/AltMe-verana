@@ -9,7 +9,9 @@ import 'package:altme/l10n/l10n.dart';
 import 'package:altme/oidc4vc/helper_function/get_payload.dart';
 import 'package:altme/oidc4vc/helper_function/oidc4vp_prompt.dart';
 import 'package:altme/oidc4vc/model/verified_request_context.dart';
-import 'package:altme/oidc4vp_transaction/widget/accept_oidc4_vp_transaction_page.dart';
+import 'package:altme/oidc4vp_transaction/data/oidc4vp_transaction_factory.dart';
+import 'package:altme/oidc4vp_transaction/domain/transaction_data.dart';
+import 'package:altme/oidc4vp_transaction/presentation/oidc4_vp_transaction_page.dart';
 import 'package:altme/scan/cubit/scan_cubit.dart';
 import 'package:altme/trusted_list/function/check_presentation_is_trusted.dart';
 import 'package:altme/trusted_list/function/check_verana_trust.dart';
@@ -168,14 +170,19 @@ Future<void> oidc4vpSiopV2AcceptHost({
   if (requestPayload != null) {
     if (requestPayload.containsKey('transaction_data')) {
       LoadingView().hide();
-      unawaited(
-        context.read<ScanCubit>().addTransactionData(
-          requestPayload['transaction_data'] as List<dynamic>,
-        ),
+      final transactionData =
+          requestPayload['transaction_data'] as List<dynamic>;
+      final transactionObjects = Oidc4vpTransactionFactory(
+        transactionData: transactionData,
       );
+      final transactions = TransactionData(
+        transactionData: transactionData,
+        transactions: transactionObjects.transactionList,
+      );
+      unawaited(context.read<ScanCubit>().addTransactionData(transactions));
 
       await Navigator.of(context).push<void>(
-        AcceptOidc4VpTransactionPage.route(
+        Oidc4VpTransactionPage.route(
           trustedListEnabled: trustedListEnabled,
           trustedEntity: trustedEntity,
           uri: processingUri,

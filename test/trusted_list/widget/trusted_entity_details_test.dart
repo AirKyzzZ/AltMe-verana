@@ -1,5 +1,5 @@
 import 'package:altme/app/shared/dio_client/dio_client.dart';
-import 'package:altme/oidc4vp_transaction/widget/accept_oidc4_vp_transaction_page.dart';
+import 'package:altme/oidc4vp_transaction/presentation/oidc4_vp_transaction_page.dart';
 import 'package:altme/trusted_list/model/trusted_entity.dart';
 import 'package:altme/trusted_list/model/verana_trust.dart';
 import 'package:altme/trusted_list/widget/trusted_entity_details.dart';
