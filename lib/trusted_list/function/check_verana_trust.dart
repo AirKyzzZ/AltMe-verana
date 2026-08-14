@@ -2,6 +2,7 @@ import 'package:altme/app/shared/constants/parameters.dart';
 import 'package:altme/app/shared/dio_client/dio_client.dart';
 import 'package:altme/oidc4vc/model/verified_request_context.dart';
 import 'package:altme/trusted_list/function/check_issuer_is_trusted.dart';
+import 'package:altme/trusted_list/function/verana_canonical_did.dart';
 import 'package:altme/trusted_list/model/trusted_entity.dart';
 import 'package:altme/trusted_list/model/trusted_list.dart';
 import 'package:altme/trusted_list/model/verana_trust.dart';
@@ -84,19 +85,23 @@ Future<VeranaConsentTrust> getVeranaConsentTrust({
   required DioClient client,
 }) async {
   if (!did.startsWith('did:')) return VeranaConsentTrust(did: did);
+  final resolvedDid = await canonicalVeranaDid(did: did, client: client);
   try {
     final dynamic response = await client
         .get(
           '${Parameters.veranaResolverUrl}/v1/trust/resolve',
-          queryParameters: <String, dynamic>{'did': did, 'detail': 'full'},
+          queryParameters: <String, dynamic>{
+            'did': resolvedDid,
+            'detail': 'full',
+          },
         )
         .timeout(const Duration(seconds: 10));
     return VeranaConsentTrust(
-      did: did,
-      details: parseVeranaTrustDetails(response, did),
+      did: resolvedDid,
+      details: parseVeranaTrustDetails(response, resolvedDid),
     );
   } catch (_) {
-    return VeranaConsentTrust(did: did);
+    return VeranaConsentTrust(did: resolvedDid);
   }
 }
 
