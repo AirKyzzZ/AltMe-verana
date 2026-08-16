@@ -18,6 +18,12 @@ extension VeranaPermissionRoleX on VeranaPermissionRole {
     VeranaPermissionRole.verifier => 'VERIFIER',
   };
 
+  /// `PermissionType` on the chain: ISSUER = 1, VERIFIER = 2.
+  int get vprTypeCode => switch (this) {
+    VeranaPermissionRole.issuer => 1,
+    VeranaPermissionRole.verifier => 2,
+  };
+
   String get label => switch (this) {
     VeranaPermissionRole.issuer => 'issuer',
     VeranaPermissionRole.verifier => 'verifier',
@@ -257,6 +263,40 @@ Future<VeranaVctSchemaResolution> resolveVeranaVctSchema({
   }
 }
 
+/// Asks the registry only for the permissions bound to this DID, role and
+/// schema. Enumerating the full list instead means pulling and parsing every
+/// permission on the chain on each check, which fails intermittently on device
+/// and surfaces to the user as "registry unreachable".
+Future<List<VeranaPermission>?> fetchVeranaPermissionsForDid({
+  required DioClient client,
+  required String did,
+  required VeranaPermissionRole role,
+  required String schemaId,
+}) async {
+  try {
+    final dynamic body = await client
+        .get(
+          '${Parameters.veranaVprApiUrl}/verana/perm/v1/find_with_did',
+          queryParameters: <String, dynamic>{
+            'did': did,
+            'type': role.vprTypeCode,
+            'schema_id': schemaId,
+          },
+        )
+        .timeout(_permissionTimeout);
+    if (body is! Map) return null;
+    final rawPermissions = body['permissions'];
+    if (rawPermissions is! List) return null;
+
+    return <VeranaPermission>[
+      for (final entry in rawPermissions)
+        if (parseVeranaPermission(entry) case final permission?) permission,
+    ];
+  } catch (_) {
+    return null;
+  }
+}
+
 Future<List<VeranaPermission>?> fetchVeranaPermissions({
   required DioClient client,
   int limit = veranaPermissionResponseMaxSize,
@@ -315,7 +355,12 @@ Future<VeranaAccreditationCheck> checkVeranaAccreditation({
     );
   }
 
-  final permissions = await fetchVeranaPermissions(client: client);
+  final permissions = await fetchVeranaPermissionsForDid(
+    client: client,
+    did: did,
+    role: role,
+    schemaId: schemaId,
+  );
   if (permissions == null) {
     return VeranaAccreditationCheck(
       granted: null,
